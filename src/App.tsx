@@ -1,0 +1,1609 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { 
+  Building2, 
+  TrendingUp, 
+  CheckSquare, 
+  Square, 
+  ChevronDown, 
+  ChevronUp, 
+  Play, 
+  RefreshCw, 
+  AlertTriangle, 
+  FileText, 
+  Database, 
+  Newspaper, 
+  Briefcase, 
+  Gauge, 
+  Coins, 
+  HelpCircle,
+  TrendingDown,
+  Percent,
+  CheckCircle2,
+  Sliders,
+  DollarSign,
+  Layers,
+  LineChart,
+  Download,
+  X,
+  Printer
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { IndustryType, FilterCondition, AnalysisResponse, AnalysisStockResult } from './types';
+
+const INDUSTRIES: { id: IndustryType; label: string; icon: string }[] = [
+  { id: '半導體', label: '半導體', icon: '💻' },
+  { id: '電子零組件', label: '電子零組件', icon: '🔌' },
+  { id: '通訊網路', label: '通訊網路', icon: '📡' },
+  { id: '生技醫療', label: '生技醫療', icon: '🧬' },
+  { id: '金融保險', label: '金融保險', icon: '🏦' },
+  { id: '航運物流', label: '航運物流', icon: '🚢' },
+  { id: '綠能環保', label: '綠能環保', icon: '🌱' },
+  { id: '傳產', label: '傳產 (化學/鋼鐵/紡織)', icon: '🏗️' },
+  { id: '其他', label: '其他 (TWSE 上市分類)', icon: '📦' }
+];
+
+const INITIAL_FILTERS: FilterCondition = {
+  technical: {
+    macd: true,
+    above10ma: false,
+    above30ma: true,
+    gain5pct: false,
+    kdGold: false,
+    multiLine: true
+  },
+  chip: {
+    vol5000: true,
+    vol30maLimit: false,
+    foreignBuy: true,
+    trustBuy: true,
+    dealerBuy: false,
+    majorIncrease: false
+  },
+  macro: {
+    ratePos: true,
+    inflationBetter: false,
+    fxRise: false,
+    policy利多: true
+  },
+  industryCondition: {
+    recovery: true,
+    peerStrong: false,
+    supplyTight: false,
+    news利多: true
+  },
+  capitalFlow: {
+    flowIn: true,
+    etfBuy: false,
+    riskOn: true
+  },
+  techTransit: {
+    newProduct: true,
+    newTech: false,
+    newBiz: false,
+    competitiveness: true
+  }
+};
+
+const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse | null) => {
+  const dateStr = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+  const timeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+  
+  const conclusionHtml = report && report.conclusion ? `
+    <div class="section" style="margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+      <h2 class="section-title">🔮 產業綜合評估與資金流向對接</h2>
+      <div class="grid grid-2">
+        <div class="card bg-purple">
+          <h3>📈 產業強弱走向</h3>
+          <p>${report.conclusion.strength}</p>
+        </div>
+        <div class="card bg-blue">
+          <h3>👥 資金流向監測</h3>
+          <p>${report.conclusion.flow}</p>
+        </div>
+      </div>
+      
+      <div class="grid grid-2 mt-4">
+        <div class="card border-emerald">
+          <h3 class="text-emerald">🎯 核心量化利多因子</h3>
+          <ul class="list">
+            ${(report.conclusion.pros || []).map((p: string) => `<li>${p}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="card border-amber">
+          <h3 class="text-amber">⚠️ 警戒量化風險因子</h3>
+          <ul class="list">
+            ${(report.conclusion.cons || []).map((c: string) => `<li>${c}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【個股量化研究報告】${stock.name} (${stock.code})</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 850px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+    
+    header {
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 24px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    
+    .header-left h1 {
+      font-size: 26px;
+      font-weight: 900;
+      color: #1e3a8a;
+      letter-spacing: -0.025em;
+      margin-bottom: 6px;
+    }
+    
+    .header-left .subtitle {
+      font-size: 14px;
+      color: #475569;
+      font-weight: 500;
+    }
+    
+    .header-right {
+      text-align: right;
+    }
+    
+    .date-badge {
+      font-size: 12px;
+      background-color: #f1f5f9;
+      color: #334155;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-weight: 600;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    
+    .score-box {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+    
+    .score-box .score-val {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    
+    .score-box .score-lbl {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    
+    .kpi-card {
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .kpi-card.price {
+      background-color: #f8fafc;
+    }
+    
+    .kpi-card.target {
+      background-color: #e0e7ff;
+      border-color: #c7d2fe;
+    }
+    
+    .kpi-card.operation {
+      background-color: #d1fae5;
+      border-color: #a7f3d0;
+    }
+    
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 6px;
+      display: block;
+    }
+    
+    .kpi-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section-content {
+      font-size: 14.5px;
+      color: #334155;
+      line-height: 1.7;
+    }
+    
+    .news-box {
+      background-color: #f8fafc;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      border-radius: 0 12px 12px 0;
+      font-style: italic;
+      margin-top: 8px;
+    }
+    
+    .risk-banner {
+      background-color: #fffbeb;
+      border: 1px solid #fde68a;
+      padding: 16px;
+      border-radius: 12px;
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    
+    .risk-banner-title {
+      font-weight: 700;
+      color: #b45309;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    
+    .risk-banner-desc {
+      color: #78350f;
+      font-size: 13.5px;
+    }
+    
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .card {
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .card.bg-purple {
+      background-color: #faf5ff;
+      border-color: #e9d5ff;
+    }
+    
+    .card.bg-blue {
+      background-color: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    
+    .card.border-emerald {
+      border-left: 4px solid #10b981;
+      background-color: #f6fdf9;
+    }
+    
+    .card.border-amber {
+      border-left: 4px solid #f59e0b;
+      background-color: #fffdf5;
+    }
+    
+    .card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #1e293b;
+    }
+    
+    .card p {
+      font-size: 13.5px;
+      color: #475569;
+    }
+    
+    .list {
+      padding-left: 18px;
+      font-size: 13.5px;
+      color: #475569;
+    }
+    
+    .list li {
+      margin-bottom: 6px;
+    }
+    
+    footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+      margin-top: 40px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .text-emerald { color: #047857; }
+    .text-amber { color: #b45309; }
+    .mt-4 { margin-top: 16px; }
+    
+    @media print {
+      body {
+        background-color: white;
+        padding: 0;
+      }
+      .container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      header {
+        border-bottom-color: #000;
+      }
+      .score-box {
+        box-shadow: none;
+        border: 1px solid #000;
+        background: #f1f5f9;
+        color: #000;
+      }
+      .score-box .score-val {
+        color: #000;
+      }
+      .kpi-card {
+        border-color: #000 !important;
+        background: none !important;
+      }
+      .kpi-card * {
+        color: #000 !important;
+      }
+      .card {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .card * {
+        color: #000 !important;
+      }
+      .news-box {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .risk-banner {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .risk-banner * {
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <h1>${stock.name} (${stock.code}) 量化研究報告</h1>
+        <div class="subtitle">台灣證券交易所（TWSE）上市標的・多重因子智慧分析報告</div>
+      </div>
+      <div class="header-right">
+        <div class="date-badge">報告產出時間: ${dateStr} ${timeStr}</div>
+        <div class="score-box">
+          <div class="score-val">${stock.score}</div>
+          <div class="score-lbl">綜合評分 / 100</div>
+        </div>
+      </div>
+    </header>
+    
+    <div class="kpi-grid">
+      <div class="kpi-card price" style="background-color: #f0f9ff; border-color: #bae6fd;">
+        <span class="kpi-label" style="color: #0369a1;">當日價格 (TWSE)</span>
+        <span class="kpi-value" style="color: #0369a1;">${typeof stock.currentPrice === 'number' ? 'NT$ ' + stock.currentPrice : stock.currentPrice}</span>
+      </div>
+      <div class="kpi-card price" style="background-color: #fdf2f8; border-color: #fbcfe8;">
+        <span class="kpi-label" style="color: #be185d;">分析基準價 (FinMind)</span>
+        <span class="kpi-value" style="color: #be185d;">${stock.previousPrice ? 'NT$ ' + stock.previousPrice : 'NT$ ' + stock.currentPrice}</span>
+      </div>
+      <div class="kpi-card target">
+        <span class="kpi-label" style="color: #4f46e5;">量化估算目標價</span>
+        <span class="kpi-value" style="color: #4f46e5;">${stock.targetPrice}</span>
+      </div>
+      <div class="kpi-card operation">
+        <span class="kpi-label" style="color: #059669;">操作價位帶建議</span>
+        <span class="kpi-value" style="color: #059669; font-size: 13px; display: block; margin-top: 4px;">${stock.operatingRange}</span>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2 class="section-title">📊 技術面分析要評</h2>
+      <div class="section-content">
+        <p>${stock.technicalSummary}</p>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2 class="section-title">👥 籌碼進出考量</h2>
+      <div class="section-content">
+        <p>${stock.chipSummary}</p>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2 class="section-title">📰 當日財經新聞與輿情觀點 (Anue 鉅亨網/經濟日報關鍵摘要)</h2>
+      <div class="section-content">
+        <div class="news-box">
+          「${stock.newsSummary}」
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2 class="section-title">⚠️ 風險防守與關鍵注意</h2>
+      <div class="risk-banner">
+        <div>
+          <div class="risk-banner-title">理財防守提示：</div>
+          <p class="risk-banner-desc">${stock.riskAlert}</p>
+        </div>
+      </div>
+    </div>
+    
+    ${conclusionHtml}
+    
+    <footer>
+      <p>※ 本報告由「台灣證券交易所個股與產業整合分析系統」自動計算生成。僅供學術研究與量化參考，不代表任何形式之投資引導與買賣推介。 ※</p>
+    </footer>
+  </div>
+</body>
+</html>`;
+};
+
+export default function App() {
+  const [selectedIndustries, setSelectedIndustries] = useState<IndustryType[]>(['半導體']);
+  const [filters, setFilters] = useState<FilterCondition>(INITIAL_FILTERS);
+  const [analysisPeriod, setAnalysisPeriod] = useState<string>('1m');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
+  const [tpexStatus, setTpexStatus] = useState<{ online: boolean; tpexQuotesCount: number; twseQuotesCount?: number; tpexConnection: string } | null>(null);
+  
+  // Section expand/collapse controls
+  const [expandedSections, setExpandedSections] = useState({
+    technical: true,
+    chip: true,
+    macro: false,
+    industryCondition: false,
+    capitalFlow: false,
+    techTransit: false
+  });
+
+  const [report, setReport] = useState<AnalysisResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [printingStockCode, setPrintingStockCode] = useState<string | null>(null);
+  const [exportModalStock, setExportModalStock] = useState<AnalysisStockResult | null>(null);
+
+  const handlePrintStock = (stockCode: string) => {
+    setPrintingStockCode(stockCode);
+    document.body.classList.add('printing-single-card');
+    setTimeout(() => {
+      window.print();
+      document.body.classList.remove('printing-single-card');
+      setPrintingStockCode(null);
+    }, 150);
+  };
+
+  // Fetch TPEx connection status on mount
+  useEffect(() => {
+    checkTpexStatus();
+  }, []);
+
+  const checkTpexStatus = async () => {
+    try {
+      const res = await fetch('/api/tpex/status');
+      if (res.ok) {
+        const data = await res.json();
+        setTpexStatus(data);
+      }
+    } catch (e) {
+      setTpexStatus({ online: true, tpexQuotesCount: 0, tpexConnection: 'FAILED' });
+    }
+  };
+
+  const handleToggleIndustry = (id: IndustryType) => {
+    if (selectedIndustries.includes(id)) {
+      if (selectedIndustries.length > 1) {
+        setSelectedIndustries(selectedIndustries.filter(i => i !== id));
+      }
+    } else {
+      setSelectedIndustries([...selectedIndustries, id]);
+    }
+  };
+
+  const handleToggleFilter = (cat: keyof FilterCondition, field: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [cat]: {
+        ...prev[cat],
+        [field]: !((prev[cat] as any)[field])
+      }
+    }));
+  };
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  // Helper to load presets
+  const applyPreset = (presetName: 'growth' | 'chip' | 'defense') => {
+    if (presetName === 'growth') {
+      setFilters({
+        technical: { macd: true, above10ma: true, above30ma: true, gain5pct: true, kdGold: true, multiLine: true },
+        chip: { vol5000: true, vol30maLimit: true, foreignBuy: true, trustBuy: false, dealerBuy: false, majorIncrease: true },
+        macro: { ratePos: true, inflationBetter: true, fxRise: false, policy利多: true },
+        industryCondition: { recovery: true, peerStrong: true, supplyTight: false, news利多: true },
+        capitalFlow: { flowIn: true, etfBuy: false, riskOn: true },
+        techTransit: { newProduct: true, newTech: true, newBiz: false, competitiveness: true }
+      });
+    } else if (presetName === 'chip') {
+      setFilters({
+        technical: { macd: false, above10ma: true, above30ma: true, gain5pct: false, kdGold: true, multiLine: false },
+        chip: { vol5000: true, vol30maLimit: false, foreignBuy: true, trustBuy: true, dealerBuy: true, majorIncrease: true },
+        macro: { ratePos: false, inflationBetter: false, fxRise: true, policy利多: false },
+        industryCondition: { recovery: true, peerStrong: false, supplyTight: true, news利多: true },
+        capitalFlow: { flowIn: true, etfBuy: true, riskOn: true },
+        techTransit: { newProduct: false, newTech: false, newBiz: false, competitiveness: true }
+      });
+    } else if (presetName === 'defense') {
+      setFilters({
+        technical: { macd: true, above10ma: false, above30ma: true, gain5pct: false, kdGold: false, multiLine: true },
+        chip: { vol5000: false, vol30maLimit: true, foreignBuy: true, trustBuy: false, dealerBuy: false, majorIncrease: false },
+        macro: { ratePos: true, inflationBetter: true, fxRise: true, policy利多: true },
+        industryCondition: { recovery: false, peerStrong: false, supplyTight: false, news利多: false },
+        capitalFlow: { flowIn: false, etfBuy: true, riskOn: false },
+        techTransit: { newProduct: true, newTech: false, newBiz: false, competitiveness: true }
+      });
+    }
+  };
+
+  const handleRunAnalysis = async () => {
+    if (selectedIndustries.length === 0) {
+      setError('請至少選擇一個產業類別');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setReport(null);
+
+    const logMessages = [
+      '⚡ 正在向臺灣證券交易所（TWSE）OpenAPI 下載行情數據...',
+      '📈 解構成交量能、本益比（PER）與殖利率（Dividend Yield）精細指標...',
+      '👥 分類籌碼，提取三大法人（外資、投信、自營商）當日進出流向...',
+      '🤖 啟動 Gemini 3.5 智能理財專家，發起總經政策與產業轉型技術評核...',
+      '🔍 檢閱奇摩股市與鉅亨網，提煉最新法人報告觀點與媒體風向摘要...'
+    ];
+
+    let currentLogIdx = 0;
+    setLoadingProgress(logMessages[0]);
+    
+    const interval = setInterval(() => {
+      currentLogIdx++;
+      if (currentLogIdx < logMessages.length) {
+        setLoadingProgress(logMessages[currentLogIdx]);
+      }
+    }, 2800);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          industries: selectedIndustries,
+          filters,
+          period: analysisPeriod
+        })
+      });
+
+      clearInterval(interval);
+
+      if (!res.ok) {
+        throw new Error('伺服器分析或網際網路通道超時，請重新選取條件並再次分析。');
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.message || '分析失敗');
+      }
+
+      setReport(data);
+    } catch (err: any) {
+      clearInterval(interval);
+      setError(err.message || '連線中斷，請重試');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Convert raw filter keys to readable Taiwanese subtitles for display
+  const getSelectedFiltersText = (): string[] => {
+    const list: string[] = [];
+    if (filters.technical.macd) list.push('MACD靠近黃金交叉 (0<D-M<1.5)');
+    if (filters.technical.above10ma) list.push('股價高於10MA');
+    if (filters.technical.above30ma) list.push('股價高於30MA');
+    if (filters.technical.gain5pct) list.push('本日漲幅>5%');
+    if (filters.technical.kdGold) list.push('KD交叉向上');
+    if (filters.technical.multiLine) list.push('均線多頭排列');
+
+    if (filters.chip.vol5000) list.push('日成交量大於5000張');
+    if (filters.chip.vol30maLimit) list.push('量能無虛爆(<30均量x3)');
+    if (filters.chip.foreignBuy) list.push('外資買超擴大');
+    if (filters.chip.trustBuy) list.push('投信卡位建倉');
+    if (filters.chip.dealerBuy) list.push('自營商跟風加碼');
+    if (filters.chip.majorIncrease) list.push('千張大戶持股攀升');
+
+    if (filters.macro.ratePos) list.push('利率政策偏多');
+    if (filters.macro.inflationBetter) list.push('通膨預期降溫');
+    if (filters.macro.fxRise) list.push('台幣匯率強升');
+    if (filters.macro.policy利多) list.push('政府政策偏向利多');
+
+    if (filters.industryCondition.recovery) list.push('景氣拐點成長/復甦');
+    if (filters.industryCondition.peerStrong) list.push('同類成分股強勢');
+    if (filters.industryCondition.supplyTight) list.push('供需缺口偏緊');
+    if (filters.industryCondition.news利多) list.push('正面產業新聞釋出');
+
+    if (filters.capitalFlow.flowIn) list.push('主力資金顯著流入');
+    if (filters.capitalFlow.etfBuy) list.push('投信/ETF增量配置');
+    if (filters.capitalFlow.riskOn) list.push('市場風險偏好上升');
+
+    if (filters.techTransit.newProduct) list.push('利潤率佳新產品投產');
+    if (filters.techTransit.newTech) list.push('前瞻量產新技術製程');
+    if (filters.techTransit.newBiz) list.push('高壁壘商業模式轉型');
+    if (filters.techTransit.competitiveness) list.push('全球競爭力實質提升');
+
+    return list;
+  };
+
+  return (
+    <div className="min-h-screen bg-transparent text-slate-100 font-sans antialiased">
+      {/* Upper Premium Header bar */}
+      <header className="sticky top-0 z-40 bg-white/5 border-b border-white/10 shadow-sm backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg shadow-inner">
+              <Gauge className="w-6 h-6" id="header-logo-icon" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                臺灣證券交易所 (TWSE) 機構級個股與產業整合分析系統
+              </h1>
+              <p className="text-xs text-slate-400 font-mono opacity-80">
+                Institutional Quantitative & Technical Intelligence Terminal — Listed Mainboard
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-auto text-xs">
+            <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded text-slate-300 font-mono font-medium">
+              <Database className="w-3.5 h-3.5 text-slate-400" />
+              TWSE API Connection:
+              {tpexStatus ? (
+                tpexStatus.tpexConnection === 'SUCCESS' ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-0.5">
+                    ● SUCCESS
+                  </span>
+                ) : (
+                  <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                    ▲ FALLBACK
+                  </span>
+                )
+              ) : (
+                <span className="text-slate-400">連接中...</span>
+              )}
+            </span>
+            <span className="bg-blue-600/20 text-blue-300 border border-blue-500/30 px-2.5 py-1.5 rounded font-mono font-medium">
+              UTC: 2026-06-02
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Side Control Panel (lg:col-span-4) */}
+        <div className="lg:col-span-5 flex flex-col gap-6" id="dashboard-sidebar-controls">
+          
+          {/* Quick Preset Badges */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 shadow-sm backdrop-blur-md">
+            <h2 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+              <Sliders className="w-4 h-4 text-slate-400 animate-pulse" /> 快速套用機構篩選模型
+            </h2>
+            <div className="grid grid-cols-3 gap-2">
+              <button 
+                id="preset-growth-btn"
+                onClick={() => applyPreset('growth')}
+                className="text-xs font-medium py-2 px-1 bg-sky-500/10 text-sky-300 border border-sky-500/20 rounded-lg hover:bg-sky-500/20 transition-colors flex flex-col items-center gap-1 cursor-pointer"
+              >
+                <span>📈 技術轉型成長股</span>
+              </button>
+              <button 
+                id="preset-chip-btn"
+                onClick={() => applyPreset('chip')}
+                className="text-xs font-medium py-2 px-1 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors flex flex-col items-center gap-1 cursor-pointer"
+              >
+                <span>👥 法人籌碼多群股</span>
+              </button>
+              <button 
+                id="preset-defense-btn"
+                onClick={() => applyPreset('defense')}
+                className="text-xs font-medium py-2 px-1 bg-indigo-505/10 text-indigo-300 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition-colors flex flex-col items-center gap-1 cursor-pointer"
+              >
+                <span>🛡️ 總經防守殖利率股</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 1. Industry Categories List */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-sm backdrop-blur-md">
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2.5">
+              <h2 className="font-bold text-slate-100 flex items-center gap-1.5">
+                <Building2 className="w-5 h-5 text-slate-300" /> 選擇上市產業類別
+              </h2>
+              <span className="text-xs text-slate-400">複選可 / 需至少選 1 項</span>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-2">
+              {INDUSTRIES.map((industry) => {
+                const isSelected = selectedIndustries.includes(industry.id);
+                return (
+                  <button
+                    key={industry.id}
+                    id={`industry-btn-${industry.id}`}
+                    onClick={() => handleToggleIndustry(industry.id)}
+                    className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-all cursor-pointer ${
+                      isSelected 
+                        ? 'bg-blue-600 border-blue-600/50 text-white shadow-lg shadow-blue-900/20 transform scale-[1.02]' 
+                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-lg mb-1">{industry.icon}</span>
+                    <span className="text-xs font-semibold leading-tight">{industry.id}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 2. Custom Filter Collapsible Checklist */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-sm backdrop-blur-md">
+            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2.5">
+              <h2 className="font-bold text-slate-100 flex items-center gap-1.5">
+                <CheckSquare className="w-5 h-5 text-slate-300" /> 整合分析過濾條件
+              </h2>
+              <button 
+                id="reset-filters-btn"
+                onClick={() => setFilters({
+                  technical: { macd: false, above10ma: false, above30ma: false, gain5pct: false, kdGold: false, multiLine: false },
+                  chip: { vol5000: false, vol30maLimit: false, foreignBuy: false, trustBuy: false, dealerBuy: false, majorIncrease: false },
+                  macro: { ratePos: false, inflationBetter: false, fxRise: false, policy利多: false },
+                  industryCondition: { recovery: false, peerStrong: false, supplyTight: false, news利多: false },
+                  capitalFlow: { flowIn: false, etfBuy: false, riskOn: false },
+                  techTransit: { newProduct: false, newTech: false, newBiz: false, competitiveness: false }
+                })}
+                className="text-xs font-medium text-slate-400 hover:text-red-400 border border-white/10 rounded px-2 py-0.5 hover:bg-white/5 cursor-pointer"
+              >
+                重置清空
+              </button>
+            </div>
+
+            {/* Filter accordions */}
+            <div className="space-y-4">
+              
+              {/* Technical indicators accordion */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-technical-toggle"
+                  onClick={() => toggleSection('technical')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    📊 技術指標過濾 ({Object.values(filters.technical).filter(Boolean).length})
+                  </span>
+                  {expandedSections.technical ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.technical && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10 transition-all">
+                    {[
+                      { key: 'macd', label: 'MACD 金叉臨界點 (0 < Diff-MACD < 1.5)' },
+                      { key: 'above10ma', label: '收盤價高於 10MA 短支撐' },
+                      { key: 'above30ma', label: '收盤價高於 30MA 中期生命線' },
+                      { key: 'gain5pct', label: '當日反彈上漲幅 ＞ 5%' },
+                      { key: 'kdGold', label: 'KD指標低檔黃金交叉' },
+                      { key: 'multiLine', label: '月線/季線 多頭排列' }
+                    ].map(f => (
+                      <div 
+                        key={f.key} 
+                        id={`filter-tech-${f.key}`}
+                        onClick={() => handleToggleFilter('technical', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.technical[f.key as keyof typeof filters.technical] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chip indicators accordion */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-chip-toggle"
+                  onClick={() => toggleSection('chip')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    👥 籌碼進出指標 ({Object.values(filters.chip).filter(Boolean).length})
+                  </span>
+                  {expandedSections.chip ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.chip && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
+                    {[
+                      { key: 'vol5000', label: '當日成交量 ＞ 5000 張' },
+                      { key: 'vol30maLimit', label: '成交量未失控 (＜30日均量 × 3)' },
+                      { key: 'foreignBuy', label: '三大法人：外資買超' },
+                      { key: 'trustBuy', label: '三大法人：投信買超' },
+                      { key: 'dealerBuy', label: '三大法人：自營商買超' },
+                      { key: 'majorIncrease', label: '集保千張籌碼大戶持股增加' }
+                    ].map(f => (
+                      <div 
+                        key={f.key}
+                        id={`filter-chip-${f.key}`}
+                        onClick={() => handleToggleFilter('chip', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.chip[f.key as keyof typeof filters.chip] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Macro policy indicators accordion */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-macro-toggle"
+                  onClick={() => toggleSection('macro')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    🌎 總體經濟與政策 ({Object.values(filters.macro).filter(Boolean).length})
+                  </span>
+                  {expandedSections.macro ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.macro && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
+                    {[
+                      { key: 'ratePos', label: '利率政策周期偏多 (降息預期)' },
+                      { key: 'inflationBetter', label: 'CPI通膨數據改善' },
+                      { key: 'fxRise', label: '新台幣兌美元匯率走升' },
+                      { key: 'policy利多', label: '政府公共政策有政策利多' }
+                    ].map(f => (
+                      <div 
+                        key={f.key}
+                        id={`filter-macro-${f.key}`}
+                        onClick={() => handleToggleFilter('macro', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.macro[f.key as keyof typeof filters.macro] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Industry climate and conditions */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-industry-toggle"
+                  onClick={() => toggleSection('industryCondition')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    🏭 產業景氣動態 ({Object.values(filters.industryCondition).filter(Boolean).length})
+                  </span>
+                  {expandedSections.industryCondition ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.industryCondition && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
+                    {[
+                      { key: 'recovery', label: '景氣週期呈現 復甦 / 成長 驅動' },
+                      { key: 'peerStrong', label: '上游、下游同業鏈條呈現強烈漲勢' },
+                      { key: 'supplyTight', label: '庫存調整結束，市場供需偏緊' },
+                      { key: 'news利多', label: '新聞媒體透露近期主流訂單利多' }
+                    ].map(f => (
+                      <div 
+                        key={f.key}
+                        id={`filter-ind-${f.key}`}
+                        onClick={() => handleToggleFilter('industryCondition', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.industryCondition[f.key as keyof typeof filters.industryCondition] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Capital flow indicators */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-flow-toggle"
+                  onClick={() => toggleSection('capitalFlow')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    💸 資金流向與偏好 ({Object.values(filters.capitalFlow).filter(Boolean).length})
+                  </span>
+                  {expandedSections.capitalFlow ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.capitalFlow && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
+                    {[
+                      { key: 'flowIn', label: '同業群板塊資金流入佔比急增' },
+                      { key: 'etfBuy', label: '高股息/中小型主題 ETF 加速增持' },
+                      { key: 'riskOn', label: '外圍資金追價意願與風險偏好提升' }
+                    ].map(f => (
+                      <div 
+                        key={f.key}
+                        id={`filter-flow-${f.key}`}
+                        onClick={() => handleToggleFilter('capitalFlow', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.capitalFlow[f.key as keyof typeof filters.capitalFlow] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Technical transformation and business innovation */}
+              <div className="border border-white/10 rounded-lg overflow-hidden">
+                <button 
+                  id="accordion-transit-toggle"
+                  onClick={() => toggleSection('techTransit')}
+                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                    ⚡ 技術轉型與競爭力 ({Object.values(filters.techTransit).filter(Boolean).length})
+                  </span>
+                  {expandedSections.techTransit ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections.techTransit && (
+                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
+                    {[
+                      { key: 'newProduct', label: '高毛利新世代新產品投片投產' },
+                      { key: 'newTech', label: '製程領先或跨入前瞻核心新技術' },
+                      { key: 'newBiz', label: '從單一產品跨足軟體/授權新商業模式' },
+                      { key: 'competitiveness', label: '關鍵核心專利與晶圓全球競爭力提升' }
+                    ].map(f => (
+                      <div 
+                        key={f.key}
+                        id={`filter-trans-${f.key}`}
+                        onClick={() => handleToggleFilter('techTransit', f.key)}
+                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                      >
+                        {filters.techTransit[f.key as keyof typeof filters.techTransit] ? (
+                          <CheckSquare className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-500/50" />
+                        )}
+                        <span>{f.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* 3. Analysis Period & Data Source Configuration */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-sm backdrop-blur-md" id="period-selection-panel">
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2.5">
+              <h2 className="font-bold text-slate-100 flex items-center gap-1.5 text-sm">
+                <Sliders className="w-5 h-5 text-slate-300" /> 分析歷史區間條件 (FinMind對接)
+              </h2>
+              <span className="text-xs text-slate-400">雙資料源</span>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1.5 uppercase font-mono tracking-wider">
+                  過往歷史時間跨度分析 (影響均線排列、阻力支撐評估)：
+                </label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { id: '1w', label: '1 週' },
+                    { id: '1m', label: '1 月' },
+                    { id: '3m', label: '3 月' },
+                    { id: '6m', label: '半年' },
+                    { id: '1y', label: '1 年' }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      id={`period-btn-${p.id}`}
+                      type="button"
+                      onClick={() => setAnalysisPeriod(p.id)}
+                      className={`text-xs font-semibold py-2 rounded-lg border text-center transition-all cursor-pointer ${
+                        analysisPeriod === p.id
+                          ? 'bg-blue-600/30 border-blue-500 text-blue-300 shadow-sm font-bold scale-[1.03]'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-slate-950/40 border border-white/5 p-3.5 rounded-lg space-y-2 text-[11px] text-slate-400 font-sans leading-relaxed">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-blue-400 font-bold shrink-0">● 最新一日：</span>
+                  <span>對接 <strong>TWSE OpenAPI</strong> 自動提取最新收盤行情及三大法人買賣。</span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-blue-400 font-bold shrink-0">● 歷史統計：</span>
+                  <span>串接 <strong>FinMind 財金資料庫</strong> 下載歷史日K行情，進行週/月生命線走勢關聯。</span>
+                </div>
+                <div className="flex items-start gap-1.5 text-amber-500/90 font-medium">
+                  <span className="shrink-0">⚠️ 專業算則：</span>
+                  <span>點選分析將自動<strong>以前一日收盤價為量化分析原點</strong>，今日即時行情僅作為操作價位帶極值參考。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trigger Analysis Button */}
+          <button
+            id="start-analysis-btn"
+            disabled={loading}
+            onClick={handleRunAnalysis}
+            className={`w-full py-4 text-center rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              loading 
+                ? 'bg-white/5 border border-white/5 text-slate-500 cursor-not-allowed' 
+                : 'bg-blue-600 text-white hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-950/50 border border-blue-500/30 active:scale-95'
+            }`}
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                正在進行智能量化評分與輿情彙整...
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5 fill-current text-white" />
+                啟動六大面向分析（最新量化評估）
+              </>
+            )}
+          </button>
+          
+        </div>
+
+        {/* Right Side Analysis Display Panel (lg:col-span-8) */}
+        <div className="lg:col-span-7 flex flex-col gap-6" id="dashboard-result-panel">
+          
+          {/* Error Board */}
+          {error && (
+            <div id="error-banner" className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 flex gap-3 text-rose-300">
+              <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-bold text-sm">數據鏈接或計算超時</h3>
+                <p className="text-xs mt-1 text-rose-400 opacity-80 leading-relaxed">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            
+            {/* Condition: Loading Progress Animation */}
+            {loading && (
+              <motion.div
+                key="loading-board"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                id="loading-report-card"
+                className="bg-white/5 border border-white/10 shadow-md backdrop-blur-md rounded-2xl p-8 flex flex-col items-center justify-center text-center min-h-[400px]"
+              >
+                <div className="p-4 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-full mb-6 relative">
+                  <RefreshCw className="w-10 h-10 animate-spin" />
+                  <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-25"></div>
+                </div>
+                
+                <h3 className="text-lg font-bold text-white mb-2">機構級多重因子走勢運算中</h3>
+                <p className="text-sm text-blue-300 max-w-md leading-relaxed font-mono px-4 py-2 border border-white/5 bg-white/5 rounded mb-4">
+                  {loadingProgress}
+                </p>
+                <div className="w-64 bg-white/10 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-blue-500 h-1.5 rounded-full animate-bar-slide w-1/2"></div>
+                </div>
+                <p className="text-xs text-slate-400 mt-4">
+                  本系統將從臺灣證券交易所（TWSE）開放資料提取 當日上市個股標的，對接外資買賣、股價季線並透過 Gemini Grounding 搜索財經新聞網摘要。
+                </p>
+              </motion.div>
+            )}
+
+            {/* Condition: Empty State Dashboard */}
+            {!loading && !report && (
+              <motion.div
+                key="empty-board"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                id="empty-report-card"
+                className="bg-white/5 border border-white/10 rounded-2xl p-8 min-h-[500px] flex flex-col items-center justify-center text-center text-slate-400 backdrop-blur-md font-sans"
+              >
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-slate-300 mb-5 border border-white/10">
+                  <LineChart className="w-8 h-8 text-blue-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2">一鍵產出機構級專業股市報告</h3>
+                <span className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6 block">
+                  請於左側控制板選擇欲分析的 **上市產業**、配置 **六大過濾指標**，您也可直接點選上方快速套用預設模型。點擊下方「啟動分析」自動生成最新量化分析報告。
+                </span>
+                
+                <div className="grid grid-cols-2 gap-4 max-w-md text-left text-xs bg-black/20 border border-white/5 p-4 rounded-xl font-mono text-slate-300">
+                  <div>
+                    <span className="font-bold text-blue-400 leading-normal block mb-1">📐 技術面評估 30%</span>
+                    指標包含日MACD發散軌跡、KD臨界支撐與30MA股價生命線。
+                  </div>
+                  <div>
+                    <span className="font-bold text-blue-400 leading-normal block mb-1">👥 籌碼集中度 25%</span>
+                    結合臺灣證券交易所三大法人明細，過濾外資與投信底層建倉股票。
+                  </div>
+                  <div className="border-t border-white/10 pt-2.5">
+                    <span className="font-bold text-blue-400 block mb-1">🏦 產業與總經 35%</span>
+                    過濾利率通膨循環、緊俏供需走勢與晶圓製程技術升級。
+                  </div>
+                  <div className="border-t border-white/10 pt-2.5">
+                    <span className="font-bold text-blue-400 block mb-1">📰 新聞輿情熱度 10%</span>
+                    實時檢索鉅亨網 (Anue) 與台股主流財經板塊輿論脈動。
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Condition: Full Detailed Report Loaded */}
+            {!loading && report && (
+              <motion.div
+                key="report-board"
+                initial={{ opacity: 0, scale: 0.99 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-6"
+                id="stock-analysis-report"
+              >
+                {/* 1. Meta / Source info Card */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-md backdrop-blur-md">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-3 mb-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 font-mono tracking-widest uppercase block mb-1">
+                        Report Overview
+                      </span>
+                      <h3 className="text-base font-bold text-white flex items-center gap-1.5 font-sans">
+                        <FileText className="w-5 h-5 text-slate-300" /> 【資料來源與分析範疇】
+                      </h3>
+                    </div>
+                    <div className="text-right text-xs font-sans">
+                      <span className="font-semibold block text-slate-300">
+                        分析對象: <span className="text-blue-400 font-bold">{report.scope.industries.join(', ')}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
+                    <div>
+                      <span className="text-blue-400 block mb-1 font-semibold">【資料來源】</span>
+                      <ul className="space-y-1 text-slate-300 list-disc pl-4 font-mono font-medium">
+                        <li>證交所 TWSE OpenAPI 數據鏈路: <span className="text-emerald-400 font-bold">成功連線</span></li>
+                        <li>財經新聞摘要來源: <span className="text-emerald-400 font-bold">{report.sources.news || report.sources.twse}</span></li>
+                        {report.sources.missing && report.sources.missing.length > 0 && (
+                          <li className="text-amber-400">未獲取部分: {report.sources.missing.join(', ')}</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <span className="text-blue-400 block mb-1 font-semibold">【套用的主要過濾條件】</span>
+                      <div className="flex flex-wrap gap-1">
+                        {report.scope.filters.map((f, i) => (
+                          <span key={i} className="bg-white/5 text-slate-300 border border-white/15 font-mono text-[10px] px-1.5 py-0.5 rounded leading-tight">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Top 5 Stock List Cards */}
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between font-sans">
+                    <h3 className="font-bold text-slate-100 border-l-4 border-blue-500 pl-2.5 flex items-center gap-1.5 text-base">
+                      <TrendingUp className="w-5 h-5 text-slate-200" /> 【產業前五名最具潛力標的】
+                    </h3>
+                    <span className="text-xs text-slate-400 font-mono">
+                      (依技術面/籌碼等多重因子綜合排序評分)
+                    </span>
+                  </div>
+
+                  {report.stocks.slice(0, 5).map((stock, index) => (
+                    <div 
+                      key={stock.code} 
+                      id={`stock-card-${stock.code}`}
+                      className={`bg-white/5 border border-white/10 rounded-xl shadow-sm hover:shadow-md hover:border-white/20 transition-all divide-y divide-white/10 overflow-hidden backdrop-blur-md ${
+                        printingStockCode === stock.code ? 'active-print-target' : ''
+                      }`}
+                    >
+                      {/* Card Title Header info */}
+                      <div className="p-4 bg-white/5 flex flex-wrap items-center justify-between gap-3 font-sans">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-600 border border-blue-500/20 text-white font-mono text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="text-base font-bold text-white font-sans">
+                            {stock.name} ({stock.code})
+                          </span>
+                          <span className="text-xs text-slate-300 font-mono border border-white/10 px-1.5 py-0.5 rounded bg-white/5">
+                            證交所上市標的
+                          </span>
+                        </div>
+
+                        {/* score & print controls */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-400">綜合評分:</span>
+                            <span className="bg-emerald-600 border border-emerald-500/10 text-white font-mono text-xs font-extrabold px-2.5 py-1 rounded shadow-inner">
+                              {stock.score} / 100
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={() => setExportModalStock(stock)}
+                            className="print-action-btn flex items-center gap-1 bg-blue-600/25 hover:bg-blue-600/40 text-blue-300 hover:text-white border border-blue-500/30 text-xs px-2.5 py-1 rounded transition-colors cursor-pointer"
+                            title="匯出此個股精美 PDF 報告"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>匯出 PDF</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Financial KPIs Grid */}
+                      <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-sm text-center font-mono animate-fade-in">
+                        <div className="bg-sky-500/5 p-2 rounded border border-sky-500/20">
+                          <span className="text-sky-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
+                            當日價格 (TWSE)
+                          </span>
+                          <span className="text-white font-bold text-base">
+                            {typeof stock.currentPrice === 'number' ? `NT$ ${stock.currentPrice}` : stock.currentPrice}
+                          </span>
+                        </div>
+
+                        <div className="bg-pink-500/5 p-2 rounded border border-pink-500/20">
+                          <span className="text-pink-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
+                            前日分析價 (FinMind)
+                          </span>
+                          <span className="text-white font-bold text-base">
+                            {stock.previousPrice ? `NT$ ${stock.previousPrice}` : "NT$ --"}
+                          </span>
+                        </div>
+
+                        <div className="bg-indigo-500/5 p-2 rounded border border-indigo-500/20">
+                          <span className="text-indigo-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
+                            目標價位帶
+                          </span>
+                          <span className="text-white font-bold text-sm">
+                            {stock.targetPrice}
+                          </span>
+                        </div>
+
+                        <div className="bg-emerald-500/5 p-2 rounded border border-emerald-500/20">
+                          <span className="text-emerald-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
+                            操作價位帶
+                          </span>
+                          <span className="text-white font-bold text-[11px] sm:text-[12px] leading-tight flex items-center justify-center min-h-[24px]">
+                            {stock.operatingRange}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Technical and chip details */}
+                      <div className="p-4 space-y-4 text-sm leading-relaxed text-slate-300 font-sans">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-bold text-white flex items-center gap-1 mb-1.5 bg-blue-500/10 border border-blue-500/10 px-2.5 py-1 rounded w-fit pb-1 sm:w-auto text-xs">
+                              📊 技術分析評核
+                            </span>
+                            <p className="text-slate-200 leading-relaxed text-[13.5px]">{stock.technicalSummary}</p>
+                          </div>
+                          <div>
+                            <span className="font-bold text-white flex items-center gap-1 mb-1.5 bg-emerald-500/10 border border-emerald-500/10 px-2.5 py-1 rounded w-fit pb-1 sm:w-auto text-xs">
+                              👥 籌碼進出考量
+                            </span>
+                            <p className="text-slate-200 leading-relaxed text-[13.5px]">{stock.chipSummary}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="font-bold text-white flex items-center gap-1 mb-1.5 bg-white/5 border border-white/5 px-2.5 py-1 rounded text-xs">
+                            <Newspaper className="w-3.5 h-3.5 text-slate-400" /> 當日財經新聞輿論摘要 (Anue 鉅亨網/經濟日報關鍵觀點)
+                          </span>
+                          <p className="text-slate-200 bg-white/5 p-3 rounded-xl border border-white/10 italic text-[13.5px] leading-relaxed">
+                            「{stock.newsSummary}」
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Risk banner inside individual stock */}
+                      <div className="bg-amber-500/5 p-3.5 flex gap-2 text-sm border-t border-white/10 text-slate-300 font-sans md:rounded-b-xl">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="font-sans leading-relaxed text-[13px]">
+                          <span className="font-semibold text-amber-400">上行風險與資產預警:</span> {stock.riskAlert}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 3. Global Industry Analysis conclusion */}
+                <div id="general-conclusion-block" className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-sm space-y-4 backdrop-blur-md">
+                  <h3 className="font-bold text-white border-l-4 border-blue-500 pl-2.5 flex items-center gap-1.5 text-base font-sans">
+                    【綜合產業結論與風險揭露】
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+                    <div className="bg-white/5 p-4 rounded-lg border border-white/10 space-y-2">
+                      <span className="font-bold text-slate-100 block border-b border-white/10 pb-1">
+                        🌍 產業強弱與大環境走勢
+                      </span>
+                      <p className="text-slate-300 leading-relaxed">{report.conclusion.strength}</p>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-lg border border-white/10 space-y-2">
+                      <span className="font-bold text-slate-100 block border-b border-white/10 pb-1">
+                        💸 資金板塊熱度與ETF配置
+                      </span>
+                      <p className="text-slate-300 leading-relaxed">{report.conclusion.flow}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 font-sans">
+                    <div className="space-y-1.5">
+                      <span className="font-bold text-emerald-400 flex items-center gap-1">
+                        🟢 全局主要上行利多 (Upside Catalysts)
+                      </span>
+                      <ul className="space-y-1 text-slate-300 list-disc pl-4 font-sans">
+                        {report.conclusion.pros.map((pro, idx) => (
+                          <li key={idx}>{pro}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="space-y-1.5 font-sans">
+                      <span className="font-bold text-red-400 flex items-center gap-1">
+                        🔴 全局主要下行風險 (Downside Risks)
+                      </span>
+                      <ul className="space-y-1 text-slate-300 list-disc pl-4">
+                        {report.conclusion.cons.map((con, idx) => (
+                          <li key={idx}>{con}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Formal institutional disclaimer text */}
+                <div id="analyst-disclaimer" className="text-[10px] text-slate-400 leading-relaxed font-sans bg-white/5 p-4 rounded-lg border border-white/10">
+                  <p className="font-bold mb-1 text-slate-300">【宣示性免責聲明 (Institutional Disclaimer)】</p>
+                  <p>
+                    本研究報告係依據中華民國主管機關核定之開放資料（臺灣證券交易所 TWSE OpenAPI）與合規公開財經新聞資源進行量化指標篩選。報告內容所有推論、目標價格帶與評估分數僅供專業學術與模擬研究用途，非屬特定買賣與投資建議。證券商品價格浮動，過去表現不代表未來獲利，投資人應自行評估整體政策變更、匯率走勢及個股財報風險，並自負投資損益之責。
+                  </p>
+                </div>
+
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
+
+      </main>
+
+      <footer className="bg-black/40 border-t border-white/10 py-6 mt-12 text-center text-xs text-slate-500 font-mono">
+        <div className="max-w-7xl mx-auto px-4">
+          <p>© 2026 臺灣證券交易所（TWSE）整合分析系統 ｜ 金融量化研究院 ｜ 僅供理財研究展示</p>
+          <p className="mt-1 text-slate-500">
+            Powered by @google/genai & Gemini-3.5-Flash with Google Search Grounding
+          </p>
+        </div>
+      </footer>
+
+      {/* Export modal overlay */}
+      <AnimatePresence>
+        {exportModalStock && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative text-left"
+            >
+              <button 
+                onClick={() => setExportModalStock(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                個股研究報告匯出選項
+              </h3>
+              
+              <div className="mb-5">
+                <p className="text-sm text-slate-300">
+                  標的：<span className="font-bold text-white">{exportModalStock.name} ({exportModalStock.code})</span>
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  請選擇最適合您的匯出方式：
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Option 1: Standalone HTML Download */}
+                <button
+                  onClick={() => {
+                    const htmlResult = generateHtmlReport(exportModalStock, report);
+                    const blob = new Blob([htmlResult], { type: 'text/html;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `量化研究報告_${exportModalStock.code}_${exportModalStock.name}.html`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => setExportModalStock(null), 350);
+                  }}
+                  className="w-full relative flex items-start gap-3 bg-blue-600/20 hover:bg-blue-600/35 border border-blue-500/30 hover:border-blue-500/50 p-4 rounded-xl text-left transition-all group cursor-pointer"
+                >
+                  <Download className="w-5 h-5 text-blue-400 mt-0.5 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <span className="font-bold text-blue-300 block text-sm group-hover:text-blue-200">
+                      1. 下載獨立電子報告 (HTML檔)
+                    </span>
+                    <span className="text-xs text-slate-300 leading-relaxed block mt-1">
+                      極力推薦！免受預覽視窗限制，下載後按兩下即可在瀏覽器開啟，完美保留專業排版與色彩，並可直接按 Ctrl+P 另存為完美 PDF。
+                    </span>
+                  </div>
+                </button>
+
+                {/* Option 2: Browser print window */}
+                <button
+                  onClick={() => {
+                    const code = exportModalStock.code;
+                    setExportModalStock(null);
+                    setTimeout(() => {
+                      handlePrintStock(code);
+                    }, 200);
+                  }}
+                  className="w-full relative flex items-start gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-4 rounded-xl text-left transition-all group cursor-pointer"
+                >
+                  <div className="w-5 h-5 flex items-center justify-center mt-0.5">
+                    <Printer className="w-5 h-5 text-slate-400 group-hover:text-white" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-200 block text-sm group-hover:text-white">
+                      2. 呼叫瀏覽器列印為 PDF
+                    </span>
+                    <span className="text-xs text-slate-400 leading-relaxed block mt-1">
+                      直接呼叫瀏覽器列印。注意：若在預覽 Pane (iFrame) 中點擊沒反應，請點上方按鈕一鍵下載，或在新分頁中開啟網頁後再按此列印。
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-white/5 flex justify-end">
+                <button
+                  onClick={() => setExportModalStock(null)}
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs rounded-lg transition-colors cursor-pointer font-medium"
+                >
+                  取消
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

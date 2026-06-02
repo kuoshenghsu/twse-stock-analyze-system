@@ -1,0 +1,6 @@
+{
+  "name": "櫃買中心個股與產業整合分析系統",
+  "description": "提供臺灣證券交易所（TWSE）上市個股與各產業類別的量化分析。結合 OpenAPI 實時市場數據與 Gemini 智能模型，輔以技術、籌碼、總經政策、產業景氣與技術轉型六大面向進行專業的走勢與潛力股分析評估。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
