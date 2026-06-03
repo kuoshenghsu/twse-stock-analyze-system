@@ -25,6 +25,9 @@ export interface StockData {
 export type IndustryType =
   | '半導體'
   | '電子零組件'
+  | '電腦及週邊設備'
+  | '光電業'
+  | '汽車工業'
   | '通訊網路'
   | '生技醫療'
   | '金融保險'
@@ -91,6 +94,7 @@ export interface AnalysisStockResult {
 }
 
 export interface AnalysisResponse {
+  twseDataDate?: string;
   success: {
     tpex: boolean;
     news: boolean;

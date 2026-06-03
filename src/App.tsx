@@ -38,6 +38,9 @@ import { IndustryType, FilterCondition, AnalysisResponse, AnalysisStockResult } 
 const INDUSTRIES: { id: IndustryType; label: string; icon: string }[] = [
   { id: '半導體', label: '半導體', icon: '💻' },
   { id: '電子零組件', label: '電子零組件', icon: '🔌' },
+  { id: '電腦及週邊設備', label: '電腦及週邊設備 (AI伺服器/散熱/組裝)', icon: '🖥️' },
+  { id: '光電業', label: '光電業 (精密光學/面板/鏡頭)', icon: '👓' },
+  { id: '汽車工業', label: '汽車工業 (新能源車/車電零組件)', icon: '🚗' },
   { id: '通訊網路', label: '通訊網路', icon: '📡' },
   { id: '生技醫療', label: '生技醫療', icon: '🧬' },
   { id: '金融保險', label: '金融保險', icon: '🏦' },
@@ -444,6 +447,7 @@ const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse
       </div>
       <div class="header-right">
         <div class="date-badge">報告產出時間: ${dateStr} ${timeStr}</div>
+        ${report && report.twseDataDate ? `<div class="date-badge" style="background-color: #e0f2fe; color: #0369a1; margin-top: 5px; font-weight: bold;">數據交易日: ${report.twseDataDate}</div>` : ''}
         <div class="score-box">
           <div class="score-val">${stock.score}</div>
           <div class="score-lbl">綜合評分 / 100</div>
@@ -455,6 +459,7 @@ const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse
       <div class="kpi-card price" style="background-color: #f0f9ff; border-color: #bae6fd;">
         <span class="kpi-label" style="color: #0369a1;">當日價格 (TWSE)</span>
         <span class="kpi-value" style="color: #0369a1;">${typeof stock.currentPrice === 'number' ? 'NT$ ' + stock.currentPrice : stock.currentPrice}</span>
+        ${report && report.twseDataDate ? `<div style="font-size: 10px; color: #0284c7; margin-top: 4px; font-weight: bold;">數據日期: ${report.twseDataDate}</div>` : ''}
       </div>
       <div class="kpi-card price" style="background-color: #fdf2f8; border-color: #fbcfe8;">
         <span class="kpi-label" style="color: #be185d;">分析基準價 (FinMind)</span>
@@ -535,6 +540,20 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [printingStockCode, setPrintingStockCode] = useState<string | null>(null);
   const [exportModalStock, setExportModalStock] = useState<AnalysisStockResult | null>(null);
+
+  const getTaiwanDateStr = () => {
+    try {
+      const formatter = new Intl.DateTimeFormat('zh-TW', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      return formatter.format(new Date()).replace(/\//g, '-');
+    } catch (e) {
+      return '2026-06-03';
+    }
+  };
 
   const handlePrintStock = (stockCode: string) => {
     setPrintingStockCode(stockCode);
@@ -758,7 +777,7 @@ export default function App() {
               )}
             </span>
             <span className="bg-blue-600/20 text-blue-300 border border-blue-500/30 px-2.5 py-1.5 rounded font-mono font-medium">
-              UTC: 2026-06-02
+              台北時間: {getTaiwanDateStr()}
             </span>
           </div>
         </div>
@@ -1286,6 +1305,9 @@ export default function App() {
                       <span className="text-blue-400 block mb-1 font-semibold">【資料來源】</span>
                       <ul className="space-y-1 text-slate-300 list-disc pl-4 font-mono font-medium">
                         <li>證交所 TWSE OpenAPI 數據鏈路: <span className="text-emerald-400 font-bold">成功連線</span></li>
+                        {report.twseDataDate && (
+                          <li>TWSE 數據交易日期: <span className="text-sky-400 font-bold font-mono">{report.twseDataDate}</span></li>
+                        )}
                         <li>財經新聞摘要來源: <span className="text-emerald-400 font-bold">{report.sources.news || report.sources.twse}</span></li>
                         {report.sources.missing && report.sources.missing.length > 0 && (
                           <li className="text-amber-400">未獲取部分: {report.sources.missing.join(', ')}</li>
@@ -1365,9 +1387,14 @@ export default function App() {
                           <span className="text-sky-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
                             當日價格 (TWSE)
                           </span>
-                          <span className="text-white font-bold text-base">
+                          <span className="text-white font-bold text-base block font-mono">
                             {typeof stock.currentPrice === 'number' ? `NT$ ${stock.currentPrice}` : stock.currentPrice}
                           </span>
+                          {report.twseDataDate && (
+                            <span className="text-[10px] text-sky-400/85 block mt-0.5 font-mono">
+                              交易日: {report.twseDataDate}
+                            </span>
+                          )}
                         </div>
 
                         <div className="bg-pink-500/5 p-2 rounded border border-pink-500/20">
