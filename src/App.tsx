@@ -522,6 +522,7 @@ export default function App() {
   const [selectedIndustries, setSelectedIndustries] = useState<IndustryType[]>(['半導體']);
   const [filters, setFilters] = useState<FilterCondition>(INITIAL_FILTERS);
   const [analysisPeriod, setAnalysisPeriod] = useState<string>('1m');
+  const [priceSourceMode, setPriceSourceMode] = useState<string>('auto');
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingProgress, setLoadingProgress] = useState<string>('');
   const [tpexStatus, setTpexStatus] = useState<{ online: boolean; tpexQuotesCount: number; twseQuotesCount?: number; tpexConnection: string } | null>(null);
@@ -676,7 +677,8 @@ export default function App() {
         body: JSON.stringify({
           industries: selectedIndustries,
           filters,
-          period: analysisPeriod
+          period: analysisPeriod,
+          priceSourceMode
         })
       });
 
@@ -1138,6 +1140,33 @@ export default function App() {
                       className={`text-xs font-semibold py-2 rounded-lg border text-center transition-all cursor-pointer ${
                         analysisPeriod === p.id
                           ? 'bg-blue-600/30 border-blue-500 text-blue-300 shadow-sm font-bold scale-[1.03]'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1.5 uppercase font-mono tracking-wider">
+                  當日最新價格資訊來源頻道 (容災與自主切換)：
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'auto', label: '自動偵測 / 優選' },
+                    { id: 'twse', label: 'TWSE OpenAPI' },
+                    { id: 'finmind', label: 'FinMind 智庫' }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      id={`price-source-btn-${p.id}`}
+                      type="button"
+                      onClick={() => setPriceSourceMode(p.id)}
+                      className={`text-[11px] font-semibold py-2 rounded-lg border text-center transition-all cursor-pointer ${
+                        priceSourceMode === p.id
+                          ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300 shadow-sm font-bold scale-[1.03]'
                           : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-200'
                       }`}
                     >

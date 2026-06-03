@@ -405,9 +405,10 @@ const generateRealisticHistory = (close: number, change: number, points: number)
 };
 
 // Primary FinMind client fetcher
-async function fetchFinmindHistory(code: string, startDate: string): Promise<any[]> {
+async function fetchFinmindHistory(code: string, startDate: string, endDate?: string): Promise<any[]> {
   try {
-    const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startDate}`);
+    const endQuery = endDate ? `&end_date=${endDate}` : "";
+    const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startDate}${endQuery}`);
     if (res.ok) {
       const json = await res.json();
       if (json && json.status === 200 && Array.isArray(json.data)) {
@@ -480,7 +481,7 @@ async function determineRealTwseDate(rawQuotes: any[], lastModifiedHeader?: stri
 
 // Dedicated stock analyzer endpoint
 app.post("/api/analyze", async (req, res) => {
-  const { industries, filters, period = "1m" } = req.body;
+  const { industries, filters, period = "1m", priceSourceMode = "auto" } = req.body;
 
   let twseQuotesSuccess = false;
   let rawQuotes: any[] = [];
@@ -748,7 +749,11 @@ app.post("/api/analyze", async (req, res) => {
 
   // 3b. Hydrate candidates with FinMind historical data
   const startDate = getStartDateByPeriod(period);
-  console.log(`[Info] Hydrating ${finalCandidates.length} final candidates with FinMind timeline since ${startDate}`);
+  const nowForTw = new Date();
+  const twNow = new Date(nowForTw.getTime() + 8 * 60 * 60 * 1000); // Shift to Taiwan UTC+8 Tz
+  const todayYmd = `${twNow.getUTCFullYear()}-${String(twNow.getUTCMonth() + 1).padStart(2, '0')}-${String(twNow.getUTCDate()).padStart(2, '0')}`;
+
+  console.log(`[Info] Hydrating ${finalCandidates.length} final candidates with FinMind timeline since ${startDate} to ${todayYmd} (Mode: ${priceSourceMode})`);
   
   const hydratedCandidates = await Promise.all(
     finalCandidates.map(async (st: any) => {
@@ -756,7 +761,9 @@ app.post("/api/analyze", async (req, res) => {
       const todayChange = st.change !== undefined ? st.change : 0;
       const previousPrice = Math.round((todayClose - todayChange) * 10) / 10;
 
-      let fmHistory = await fetchFinmindHistory(st.code, startDate);
+      // If choosing FinMind as the price source, query the API using the current day's date/time as the end boundary
+      const queryEndDate = priceSourceMode === "finmind" ? todayYmd : undefined;
+      let fmHistory = await fetchFinmindHistory(st.code, startDate, queryEndDate);
       const isRealFm = fmHistory.length > 0;
       let historyList: { date: string; close: number }[] = [];
 
@@ -784,7 +791,10 @@ app.post("/api/analyze", async (req, res) => {
           const fmDate = String(latestFmItem.date || "");
           const isFmNewerThanTwse = twseDataDate ? (fmDate > twseDataDate) : true;
           
-          if (staleStatus.stale || isFmNewerThanTwse) {
+          const shouldOverwrite = priceSourceMode === "finmind" || 
+            (priceSourceMode !== "twse" && (staleStatus.stale || isFmNewerThanTwse));
+          
+          if (shouldOverwrite) {
             const fmClose = parseFloat(String(latestFmItem.close || 0));
             if (fmClose > 0) {
               const fmOpen = parseFloat(String(latestFmItem.open || latestFmItem.close || 0));
@@ -1018,7 +1028,8 @@ Use Google Search grounding or recent web trends specifically to summarize news 
       parsedData.sources.missing = [...new Set([...parsedData.sources.missing, ...missingData])];
     }
 
-    parsedData.twseDataDate = getTwseDataDate(staleStatus.stale ? undefined : rawQuotes, hydratedCandidates);
+    const bypassTwseDate = priceSourceMode === "finmind" || (priceSourceMode === "auto" && staleStatus.stale);
+    parsedData.twseDataDate = getTwseDataDate(bypassTwseDate ? undefined : rawQuotes, hydratedCandidates);
     res.json(parsedData);
 
   } catch (error: any) {
@@ -1140,8 +1151,9 @@ Use Google Search grounding or recent web trends specifically to summarize news 
         };
       });
 
+      const bypassTwseDate = priceSourceMode === "finmind" || (priceSourceMode === "auto" && staleStatus.stale);
       const fallbackResponse = {
-        twseDataDate: getTwseDataDate(staleStatus.stale ? undefined : rawQuotes, hydratedCandidates),
+        twseDataDate: getTwseDataDate(bypassTwseDate ? undefined : rawQuotes, hydratedCandidates),
         success: {
           twse: true,
           news: true
