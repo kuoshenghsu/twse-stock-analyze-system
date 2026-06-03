@@ -518,6 +518,473 @@ const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse
 </html>`;
 };
 
+const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisResponse | null) => {
+  const dateStr = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+  const timeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+  
+  const industryStr = report && report.scope && report.scope.industries ? report.scope.industries.join(', ') : '';
+
+  const conclusionHtml = report && report.conclusion ? `
+    <div class="conclusion-cover page-break">
+      <div class="cover-header">
+        <h1>🔮 產業綜合評估與資金流向對接</h1>
+        <p style="margin-top: 6px; color: #475569;">產業板塊資金熱度與多空利多/風險關鍵因子對接研究</p>
+      </div>
+
+      <div class="grid grid-2" style="margin-top: 24px;">
+        <div class="card bg-purple">
+          <h3>📈 產業強弱走向</h3>
+          <p>${report.conclusion.strength}</p>
+        </div>
+        <div class="card bg-blue">
+          <h3>👥 資金流向監測</h3>
+          <p>${report.conclusion.flow}</p>
+        </div>
+      </div>
+      
+      <div class="grid grid-2 mt-4" style="margin-top: 20px;">
+        <div class="card border-emerald">
+          <h3 class="text-emerald">🎯 核心量化利多因子</h3>
+          <ul class="list">
+            ${(report.conclusion.pros || []).map((p: string) => `<li>${p}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="card border-amber">
+          <h3 class="text-amber">⚠️ 警戒量化風險因子</h3>
+          <ul class="list">
+            ${(report.conclusion.cons || []).map((c: string) => `<li>${c}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 80px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 40px;">
+        <p style="font-size: 16px; font-weight: bold; color: #1e3a8a;">精選之五大最具潛力標的個股深度量化研究報告</p>
+        <span style="font-size: 12px; display: block; margin-top: 8px;">(以下各標的在瀏覽、列印或另存 PDF 時將會自動分配於獨立頁面)</span>
+      </div>
+    </div>
+  ` : '';
+
+  const stocksHtml = stocks.map((stock, index) => `
+    <div class="stock-section ${index < stocks.length - 1 ? 'page-break' : ''}">
+      <div class="stock-header">
+        <div class="rank-badge">推薦第 ${index + 1} 名</div>
+        <h2>${stock.name} (${stock.code}) 量化研究報告</h2>
+        <div class="score-badge">綜合評分: ${stock.score} / 100</div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card price" style="background-color: #f0f9ff; border-color: #bae6fd;">
+          <span class="kpi-label" style="color: #0369a1;">當日價格 (TWSE)</span>
+          <span class="kpi-value" style="color: #0369a1;">${typeof stock.currentPrice === 'number' ? 'NT$ ' + stock.currentPrice : stock.currentPrice}</span>
+          ${report && report.twseDataDate ? `<div style="font-size: 10px; color: #0284c7; margin-top: 4px; font-weight: bold;">數據日期: ${report.twseDataDate}</div>` : ''}
+        </div>
+        <div class="kpi-card price" style="background-color: #fdf2f8; border-color: #fbcfe8;">
+          <span class="kpi-label" style="color: #be185d;">分析基準價 (FinMind)</span>
+          <span class="kpi-value" style="color: #be185d;">${stock.previousPrice ? 'NT$ ' + stock.previousPrice : 'NT$ ' + stock.currentPrice}</span>
+        </div>
+        <div class="kpi-card target">
+          <span class="kpi-label" style="color: #4f46e5;">量化估算目標價</span>
+          <span class="kpi-value" style="color: #4f46e5;">${stock.targetPrice}</span>
+        </div>
+        <div class="kpi-card operation">
+          <span class="kpi-label" style="color: #059669;">操作價位帶建議</span>
+          <span class="kpi-value" style="color: #059669; font-size: 11px; display: block; margin-top: 4px; line-height: 1.3;">${stock.operatingRange}</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 class="section-title">📊 技術面分析要評</h3>
+        <div class="section-content">
+          <p>${stock.technicalSummary}</p>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">👥 籌碼進出考量</h3>
+        <div class="section-content">
+          <p>${stock.chipSummary}</p>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">📰 當日財經新聞與輿情觀點</h3>
+        <div class="section-content">
+          <div class="news-box">
+            「${stock.newsSummary}」
+          </div>
+        </div>
+      </div>
+      
+      <div class="section" style="margin-bottom: 0;">
+        <h3 class="section-title">⚠️ 風險防守與關鍵注意</h3>
+        <div class="risk-banner">
+          <div>
+            <div class="risk-banner-title">理財防守提示：</div>
+            <p class="risk-banner-desc">${stock.riskAlert}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【產業前五名最具潛力標的合併報告】${industryStr}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 850px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+
+    .master-title-block {
+      text-align: center;
+      border-bottom: 3px double #3b82f6;
+      padding-bottom: 24px;
+      margin-bottom: 40px;
+    }
+
+    .master-title-block h1 {
+      font-size: 26px;
+      font-weight: 900;
+      color: #1e3a8a;
+      margin-bottom: 10px;
+    }
+
+    .master-title-block .metadata {
+      font-size: 13px;
+      color: #475569;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      font-weight: 500;
+    }
+
+    .page-break {
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .conclusion-cover {
+      padding-bottom: 30px;
+      margin-bottom: 40px;
+    }
+
+    .cover-header h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1e3a8a;
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 8px;
+    }
+
+    .stock-section {
+      padding-top: 30px;
+      padding-bottom: 30px;
+      margin-bottom: 40px;
+    }
+
+    .stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 12px;
+    }
+
+    .rank-badge {
+      font-weight: 800;
+      font-size: 11px;
+      background-color: #3b82f6;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .stock-header h2 {
+      font-size: 20px;
+      font-weight: 850;
+      color: #0f172a;
+      flex: 1;
+      margin-left: 15px;
+    }
+
+    .score-badge {
+      font-size: 12px;
+      background-color: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      font-weight: bold;
+      padding: 4px 12px;
+      border-radius: 8px;
+    }
+    
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 25px;
+    }
+    
+    .kpi-card {
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .kpi-card.price {
+      background-color: #f8fafc;
+    }
+    
+    .kpi-card.target {
+      background-color: #e0e7ff;
+      border-color: #c7d2fe;
+    }
+    
+    .kpi-card.operation {
+      background-color: #d1fae5;
+      border-color: #a7f3d0;
+    }
+    
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 4px;
+      display: block;
+    }
+    
+    .kpi-value {
+      font-size: 17px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    
+    .section {
+      margin-bottom: 20px;
+    }
+    
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    
+    .section-content {
+      font-size: 13.5px;
+      color: #334155;
+      line-height: 1.6;
+    }
+    
+    .news-box {
+      background-color: #f8fafc;
+      border-left: 4px solid #3b82f6;
+      padding: 12px;
+      border-radius: 0 12px 12px 0;
+      font-style: italic;
+      margin-top: 4px;
+    }
+    
+    .risk-banner {
+      background-color: #fffbeb;
+      border: 1px solid #fde68a;
+      padding: 12px;
+      border-radius: 12px;
+      display: flex;
+      gap: 12px;
+    }
+    
+    .risk-banner-title {
+      font-weight: 700;
+      color: #b45309;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+    
+    .risk-banner-desc {
+      color: #78350f;
+      font-size: 12.5px;
+    }
+    
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .card {
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .card.bg-purple {
+      background-color: #faf5ff;
+      border-color: #e9d5ff;
+    }
+    
+    .card.bg-blue {
+      background-color: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    
+    .card.border-emerald {
+      border-left: 4px solid #10b981;
+      background-color: #f6fdf9;
+    }
+    
+    .card.border-amber {
+      border-left: 4px solid #f59e0b;
+      background-color: #fffdf5;
+    }
+    
+    .card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #1e293b;
+    }
+    
+    .card p {
+      font-size: 13px;
+      color: #475569;
+    }
+    
+    .list {
+      padding-left: 18px;
+      font-size: 13px;
+      color: #475569;
+    }
+    
+    .list li {
+      margin-bottom: 6px;
+    }
+    
+    footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+      margin-top: 40px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .text-emerald { color: #047857; }
+    .text-amber { color: #b45309; }
+    .mt-4 { margin-top: 16px; }
+    
+    @media print {
+      body {
+        background-color: white;
+        padding: 0;
+      }
+      .container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .master-title-block {
+        border-bottom-color: #000;
+      }
+      .stock-header {
+        border-bottom-color: #000;
+      }
+      .cover-header h1 {
+        border-bottom-color: #000;
+      }
+      .rank-badge {
+        background-color: #000 !important;
+        color: #fff !important;
+        border: 1px solid #000;
+      }
+      .score-badge {
+        background: none !important;
+        border-color: #000 !important;
+        color: #000 !important;
+      }
+      .kpi-card {
+        border-color: #000 !important;
+        background: none !important;
+      }
+      .kpi-card * {
+        color: #000 !important;
+      }
+      .card {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .card * {
+        color: #000 !important;
+      }
+      .news-box {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .risk-banner {
+        background: none !important;
+        border-color: #000 !important;
+      }
+      .risk-banner * {
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="master-title-block">
+      <h1>【產業多因子量化評估與潛力個股合併報告】</h1>
+      <div class="subtitle" style="font-size: 16px; color: #3b82f6; font-weight: bold; margin-bottom: 8px;">產業板塊：${industryStr}</div>
+      <div class="metadata">
+        <span>報告產出時間：${dateStr} ${timeStr}</span>
+        ${report && report.twseDataDate ? `<span>最新數據交易日：${report.twseDataDate}</span>` : ''}
+      </div>
+    </div>
+
+    ${conclusionHtml}
+    
+    ${stocksHtml}
+    
+    <footer>
+      <p>※ 本報告由「台灣證券交易所個股與產業整合分析系統」自動計算生成。僅供學術研究與量化參考，不代表任何形式之投資引導與買賣推介。 ※</p>
+    </footer>
+  </div>
+</body>
+</html>`;
+};
+
 export default function App() {
   const [selectedIndustries, setSelectedIndustries] = useState<IndustryType[]>(['半導體']);
   const [filters, setFilters] = useState<FilterCondition>(INITIAL_FILTERS);
@@ -1359,13 +1826,38 @@ export default function App() {
 
                 {/* 2. Top 5 Stock List Cards */}
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between font-sans">
-                    <h3 className="font-bold text-slate-100 border-l-4 border-blue-500 pl-2.5 flex items-center gap-1.5 text-base">
-                      <TrendingUp className="w-5 h-5 text-slate-200" /> 【產業前五名最具潛力標的】
-                    </h3>
-                    <span className="text-xs text-slate-400 font-mono">
-                      (依技術面/籌碼等多重因子綜合排序評分)
-                    </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans pb-1">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h3 className="font-bold text-slate-100 border-l-4 border-blue-500 pl-2.5 flex items-center gap-1.5 text-base">
+                        <TrendingUp className="w-5 h-5 text-slate-200" /> 【產業前五名最具潛力標的】
+                      </h3>
+                      <span className="text-xs text-slate-400 font-mono">
+                        (依技術面/籌碼等多重因子綜合排序評分)
+                      </span>
+                    </div>
+
+                    {report && report.stocks && report.stocks.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const htmlResult = generateAllHtmlReport(report.stocks.slice(0, 5), report);
+                          const blob = new Blob([htmlResult], { type: 'text/html;charset=utf-8;' });
+                          const url = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          const industryStr = report.scope && report.scope.industries ? report.scope.industries.join('_') : '產業';
+                          link.setAttribute('download', `量化研究報告_${industryStr}_前五名合併報告.html`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="print-action-btn flex items-center gap-1.5 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 hover:text-white px-3 py-1.5 rounded-lg transition-all text-xs font-semibold cursor-pointer shadow-sm shadow-emerald-500/5 hover:scale-[1.02]"
+                        title="一鍵匯出包含前五名個股的完整合併報告 HTML/PDF"
+                      >
+                        <Download className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>匯出前五名合併報告 (HTML/PDF)</span>
+                      </button>
+                    )}
                   </div>
 
                   {report.stocks.slice(0, 5).map((stock, index) => (
@@ -1615,15 +2107,45 @@ export default function App() {
                   <Download className="w-5 h-5 text-blue-400 mt-0.5 group-hover:scale-110 transition-transform" />
                   <div>
                     <span className="font-bold text-blue-300 block text-sm group-hover:text-blue-200">
-                      1. 下載獨立電子報告 (HTML檔)
+                      1. 下載此個股電子報告 (HTML檔)
                     </span>
                     <span className="text-xs text-slate-300 leading-relaxed block mt-1">
-                      極力推薦！免受預覽視窗限制，下載後按兩下即可在瀏覽器開啟，完美保留專業排版與色彩，並可直接按 Ctrl+P 另存為完美 PDF。
+                      下載獨立電子報告。完美配對專業排版與色彩，並可直接按 Ctrl+P 另存為完美單頁 PDF。
                     </span>
                   </div>
                 </button>
 
-                {/* Option 2: Browser print window */}
+                {/* Option 2: All Top 5 Industry Stocks Export */}
+                {report && report.stocks && report.stocks.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const htmlResult = generateAllHtmlReport(report.stocks.slice(0, 5), report);
+                      const blob = new Blob([htmlResult], { type: 'text/html;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      const industryStr = report.scope && report.scope.industries ? report.scope.industries.join('_') : '產業';
+                      link.setAttribute('download', `量化研究報告_${industryStr}_前五名合併報告.html`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      setTimeout(() => setExportModalStock(null), 350);
+                    }}
+                    className="w-full relative flex items-start gap-3 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 hover:border-emerald-500/50 p-4 rounded-xl text-left transition-all group cursor-pointer border-dashed"
+                  >
+                    <Download className="w-5 h-5 text-emerald-400 mt-0.5 group-hover:scale-110 transition-transform" />
+                    <div>
+                      <span className="font-bold text-emerald-300 block text-sm group-hover:text-emerald-200">
+                        2. 一次匯出『產業前五名』合併報告 (HTML檔)
+                      </span>
+                      <span className="text-xs text-slate-300 leading-relaxed block mt-1">
+                        強烈推薦！一鍵匯出目前產業推薦前 5 名所有個股與總體資金走向評核之精美完整報告。可直接按 Ctrl+P 另存為多頁 PDF，快速一次存檔！
+                      </span>
+                    </div>
+                  </button>
+                )}
+
+                {/* Option 3: Browser print window for current stock */}
                 <button
                   onClick={() => {
                     const code = exportModalStock.code;
@@ -1639,10 +2161,10 @@ export default function App() {
                   </div>
                   <div>
                     <span className="font-bold text-slate-200 block text-sm group-hover:text-white">
-                      2. 呼叫瀏覽器列印為 PDF
+                      3. 呼叫瀏覽器列印當前個股為 PDF
                     </span>
                     <span className="text-xs text-slate-400 leading-relaxed block mt-1">
-                      直接呼叫瀏覽器列印。注意：若在預覽 Pane (iFrame) 中點擊沒反應，請點上方按鈕一鍵下載，或在新分頁中開啟網頁後再按此列印。
+                      直接呼叫瀏覽器列印列印本張個股。注意：若為預覽 Pane iFrame 限制列印，請點選項 1 或 2 進行下載後儲存。
                     </span>
                   </div>
                 </button>

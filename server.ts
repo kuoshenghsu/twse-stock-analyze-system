@@ -849,7 +849,7 @@ For each of the Top 5 chosen stock, you must calculate/estimate and compile:
 - Operating Buy/Sell Range (操作價位帶) - calculated from support levels (near 5MA or 10MA), ATR indicators, and chip focus.
 - Technical Face Summary (技術面摘要) - detailed 2-3 sentence analysis of MA, MACD or KD trends matching the filters.
 - Chip Face Summary (籌碼面摘要) - detailed 2-3 sentence evaluation of foreign, trust and dealer positions.
-- News Summary (新聞摘要) - You MUST strictly focus on industry-specific news, industry sector developments, supply chain changes, product breakthroughs, earnings growth, business expansions, or industrial cycles of this specific stock. You are STRICTLY FORBIDDEN from presenting broad, general macroeconomic news (such as US Federal Reserve interest rates, generic political news, or market-wide index moves) unless it has a direct, massive impact on this stock's specific industry. The output must be an extremely precise, condensed 2-3 sentence summary of viewpoints from authoritative sources such as Yahoo Finance (Yahoo奇摩股市), Juheng (鉅亨網), Economic Daily (經濟日報), or Commercial Times (工商時報) specifically targeting this company’s industrial landscape, manufacturing cycle, and market operations.
+- News Summary (新聞摘要) - 你必須搜集與該個股相關的最新財經新聞或重大消息。**【重要原則】新聞資訊必須優先以「有提及該個股（依名稱或代號）」的具體分析、營運動態、營收與利多/利空事件為主；若最新資訊中「沒有提及該個股的部分」，才能夠「退而求其次以該產業/板塊的最新動態、政策或景氣循環趨勢為主」**。你嚴禁呈現無關的宏觀經濟雜訊（如聯準會利率、地緣政治、大盤指數波動等，除非對該板塊有直接且巨大的衝擊）。請使用繁體中文輸出 2-3 句極其精確、簡練的權威媒體（如鉅亨網、經濟日報、工商時報、Yahoo奇摩股市或MoneyDJ）觀點及報導內容。
 - Comprehensive Potential Score (綜合評分 1-100) - based strictly on Tech (30%), Chip (25%), Industrial Climate (20%), Fund Flow (15%), and Tech Transition/Competitiveness (10%).
 - Risk Warning (風險提示) - potential downside catalysts or vulnerabilities (such as weak volume, customer premium reduction, currency risk).
 
@@ -881,7 +881,7 @@ OpenAPI quotes fetching was: ${twseQuotesSuccess ? "SUCCESS" : "FAILED"}.
 Missing raw parameters (if any): ${JSON.stringify(missingData)}.
 
 Using the above information and your professional intelligence, select the TOP 5 most promising stocks. Compile their analysis.
-Use Google Search grounding or recent web trends specifically to summarize news events (e.g. from Yahoo Finance, Juheng, or MoneyDJ) and find their latest consensus outlooks.
+Use Google Search grounding specifically to search and summarize the most recent news events (e.g., from Yahoo奇摩股市, 鉅亨網, 經濟日報, 工商時報, or MoneyDJ) for each selected stock. **For each stock, prioritize searching for and summarizing news that explicitly mentions this specific stock by name or stock code (e.g., "聯發科 營收", "2454 新聞"). Only if there are no direct recent mentions or specific news for that stock, should you fall back to summarizing news and tendencies regarding its general industry.**
 `;
 
   try {
