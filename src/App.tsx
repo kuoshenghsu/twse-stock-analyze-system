@@ -30,7 +30,8 @@ import {
   LineChart,
   Download,
   X,
-  Printer
+  Printer,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IndustryType, FilterCondition, AnalysisResponse, AnalysisStockResult } from './types';
@@ -490,7 +491,14 @@ const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse
     </div>
     
     <div class="section">
-      <h2 class="section-title">📰 當日財經新聞與輿情觀點 (Anue 鉅亨網/經濟日報關鍵摘要)</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">
+        <h2 class="section-title" style="border: none; margin: 0; padding: 0;">📰 當日財經新聞與輿情觀點 (Anue 鉅亨網/經濟日報關鍵摘要)</h2>
+        ${stock.newsUrl ? `
+          <a href="${stock.newsUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 11.5px; color: #0284c7; text-decoration: none; font-weight: bold; background-color: #f0f9ff; border: 1px solid #bae6fd; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
+            閱讀完整報導 ↗
+          </a>
+        ` : ''}
+      </div>
       <div class="section-content">
         <div class="news-box">
           「${stock.newsSummary}」
@@ -606,7 +614,14 @@ const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisRe
       </div>
       
       <div class="section">
-        <h3 class="section-title">📰 當日財經新聞與輿情觀點</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px;">
+          <h3 class="section-title" style="border: none; margin: 0; padding: 0;">📰 當日財經新聞與輿情觀點</h3>
+          ${stock.newsUrl ? `
+            <a href="${stock.newsUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: #0284c7; text-decoration: none; font-weight: bold; background-color: #f0f9ff; border: 1px solid #bae6fd; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;">
+              閱讀完整報導 ↗
+            </a>
+          ` : ''}
+        </div>
         <div class="section-content">
           <div class="news-box">
             「${stock.newsSummary}」
@@ -1230,7 +1245,10 @@ export default function App() {
           <div className="flex items-center gap-3 self-start md:self-auto text-xs">
             <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded text-slate-300 font-mono font-medium">
               <Database className="w-3.5 h-3.5 text-slate-400" />
-              TWSE API Connection:
+              {priceSourceMode === 'auto' && '價格智選核心 (自動雙鏈路)'}
+              {priceSourceMode === 'twse' && '價格智選核心 (TWSE API)'}
+              {priceSourceMode === 'finmind' && '價格智選核心 (FinMind API)'}
+              :
               {tpexStatus ? (
                 tpexStatus.tpexConnection === 'SUCCESS' ? (
                   <span className="text-emerald-400 font-bold flex items-center gap-0.5">
@@ -1652,9 +1670,15 @@ export default function App() {
                   <span className="text-blue-400 font-bold shrink-0">● 歷史統計：</span>
                   <span>串接 <strong>FinMind 財金資料庫</strong> 下載歷史日K行情，進行週/月生命線走勢關聯。</span>
                 </div>
-                <div className="flex items-start gap-1.5 text-amber-500/90 font-medium">
-                  <span className="shrink-0">⚠️ 專業算則：</span>
-                  <span>點選分析將自動<strong>以前一日收盤價為量化分析原點</strong>，今日即時行情僅作為操作價位帶極值參考。</span>
+                <div className={`flex items-start gap-1.5 font-medium transition-all duration-300 ${priceSourceMode === 'finmind' ? 'text-emerald-400/95 font-bold bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/25 animate-pulse' : 'text-amber-500/90'}`}>
+                  <span className="shrink-0">{priceSourceMode === 'finmind' ? '💡 行情策略：' : '⚠️ 專業算則：'}</span>
+                  <span>
+                    {priceSourceMode === 'finmind' ? (
+                      '【FinMind 模式】主要以提取當日最新收盤價進行量化部署；若當日尚未更新（通常於 14:30 之後更新）或無資料，系統將自動、無縫改採前一日最新收盤數據，以確保分析正確完整。'
+                    ) : (
+                      '點選分析將自動以前一日收盤價為量化分析原點，今日即時行情僅作為操作價位帶極值參考。'
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1800,9 +1824,21 @@ export default function App() {
                     <div>
                       <span className="text-blue-400 block mb-1 font-semibold">【資料來源】</span>
                       <ul className="space-y-1 text-slate-300 list-disc pl-4 font-mono font-medium">
-                        <li>證交所 TWSE OpenAPI 數據鏈路: <span className="text-emerald-400 font-bold">成功連線</span></li>
+                        <li>
+                          收盤行情來源核心 :{' '}
+                          <span className="text-emerald-400 font-bold">
+                            {priceSourceMode === 'auto' && '自動偵測選定 (TWSE / FinMind 雙連線)'}
+                            {priceSourceMode === 'twse' && 'TWSE OpenAPI (強制連線模式)'}
+                            {priceSourceMode === 'finmind' && 'FinMind 智庫 API (強制連線模式)'}
+                          </span>
+                        </li>
                         {report.twseDataDate && (
-                          <li>TWSE 數據交易日期: <span className="text-sky-400 font-bold font-mono">{report.twseDataDate}</span></li>
+                          <li>
+                            {priceSourceMode === 'auto' && '當日收盤數據'}
+                            {priceSourceMode === 'twse' && 'TWSE OpenAPI'}
+                            {priceSourceMode === 'finmind' && 'FinMind 智庫'}
+                            數據交易日期: <span className="text-sky-400 font-bold font-mono">{report.twseDataDate}</span>
+                          </li>
                         )}
                         <li>財經新聞摘要來源: <span className="text-emerald-400 font-bold">{report.sources.news || report.sources.twse}</span></li>
                         {report.sources.missing && report.sources.missing.length > 0 && (
@@ -1904,18 +1940,10 @@ export default function App() {
 
                       {/* Financial KPIs Grid */}
                       <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-sm text-center font-mono animate-fade-in">
-                        <div className="bg-sky-500/5 p-2 rounded border border-sky-500/20">
-                          <span className="text-sky-400 block mb-0.5 font-sans font-semibold text-[10px] uppercase">
-                            當日價格 (TWSE)
-                          </span>
+                        <div className="bg-sky-500/5 p-2 rounded border border-sky-500/20 flex flex-col justify-center items-center min-h-[58px]">
                           <span className="text-white font-bold text-base block font-mono">
                             {typeof stock.currentPrice === 'number' ? `NT$ ${stock.currentPrice}` : stock.currentPrice}
                           </span>
-                          {report.twseDataDate && (
-                            <span className="text-[10px] text-sky-400/85 block mt-0.5 font-mono">
-                              交易日: {report.twseDataDate}
-                            </span>
-                          )}
                         </div>
 
                         <div className="bg-pink-500/5 p-2 rounded border border-pink-500/20">
@@ -1964,9 +1992,22 @@ export default function App() {
                         </div>
 
                         <div>
-                          <span className="font-bold text-white flex items-center gap-1 mb-1.5 bg-white/5 border border-white/5 px-2.5 py-1 rounded text-xs">
-                            <Newspaper className="w-3.5 h-3.5 text-slate-400" /> 當日財經新聞輿論摘要 (Anue 鉅亨網/經濟日報關鍵觀點)
-                          </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                            <span className="font-bold text-white flex items-center gap-1 bg-white/5 border border-white/5 px-2.5 py-1 rounded text-xs w-fit">
+                              <Newspaper className="w-3.5 h-3.5 text-slate-400" /> 當日財經新聞輿論摘要 (Anue 鉅亨網/經濟日報關鍵觀點)
+                            </span>
+                            {stock.newsUrl && (
+                              <a
+                                href={stock.newsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 px-2.5 py-1 rounded-md transition-all cursor-pointer shadow-sm active:scale-95"
+                              >
+                                <span>閱讀原始報導 / 搜尋輿情</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
                           <p className="text-slate-200 bg-white/5 p-3 rounded-xl border border-white/10 italic text-[13.5px] leading-relaxed">
                             「{stock.newsSummary}」
                           </p>

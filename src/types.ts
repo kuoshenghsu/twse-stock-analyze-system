@@ -88,7 +88,10 @@ export interface AnalysisStockResult {
   operatingRange: string;
   technicalSummary: string;
   chipSummary: string;
+  companyIntro: string;
+  mainBusiness: string;
   newsSummary: string;
+  newsUrl: string;
   score: number;
   riskAlert: string;
 }
