@@ -223,8 +223,128 @@ const getStartDateByPeriod = (period: string): string => {
   return now.toISOString().split("T")[0];
 };
 
+// Helper to get expected date requirements based on current Taiwan Time
+const getExpectedDateRequirements = (): { expectedDate: string; reason: string; requiredType: "yesterday_or_newer" | "today_or_newer" } => {
+  const now = new Date();
+  const twNow = new Date(now.getTime() + 8 * 60 * 60 * 1000); // Shift to Taiwan UTC+8 timezone
+
+  // Get local date/time parts for Taiwan Time
+  const twYear = twNow.getUTCFullYear();
+  const twMonth = twNow.getUTCMonth();
+  const twDate = twNow.getUTCDate();
+  const twDayOfWeek = twNow.getUTCDay(); // 0: Sunday, 1-5: Mon-Fri, 6: Sat
+  const twHourLocal = twNow.getUTCHours(); // Corresponds to local hour in UTC+8 shifted date
+
+  const isTodayWeekday = twDayOfWeek !== 0 && twDayOfWeek !== 6;
+  const todayYmd = `${twYear}-${String(twMonth + 1).padStart(2, '0')}-${String(twDate).padStart(2, '0')}`;
+
+  // Find the previous trading day (the last Mon-Fri weekday before today)
+  const refDate = new Date(Date.UTC(twYear, twMonth, twDate));
+  let prevTradingDate = "";
+  for (let i = 1; i <= 10; i++) {
+    const testDate = new Date(refDate.getTime() - i * 24 * 60 * 60 * 1000);
+    const day = testDate.getUTCDay();
+    if (day !== 0 && day !== 6) {
+      prevTradingDate = testDate.toISOString().split("T")[0];
+      break;
+    }
+  }
+
+  // 1. 如果超過下午六點 (18:00) 之後還無法取得當日的價格資訊，則一樣改由 FinMind 取得
+  if (twHourLocal >= 18) {
+    if (isTodayWeekday) {
+      return { 
+        expectedDate: todayYmd, 
+        reason: "超過台灣時間 18:00，應取得當日價格資訊", 
+        requiredType: "today_or_newer" 
+      };
+    } else {
+      return { 
+        expectedDate: prevTradingDate, 
+        reason: "週末超過台灣時間 18:00，預期上個交易日價格資訊", 
+        requiredType: "yesterday_or_newer" 
+      };
+    }
+  }
+
+  // 2. 若超過台灣時間早上 8:00 後由 TWSE 得到的價格資訊還不是前一日的價格資訊，則相關價格資訊改嘗試由 FinMind 取得
+  if (twHourLocal >= 8) {
+    return { 
+      expectedDate: prevTradingDate, 
+      reason: "超過台灣時間 08:00，預期至少包含前一日 / 前一交易日價格資訊", 
+      requiredType: "yesterday_or_newer" 
+    };
+  }
+
+  // Before 8:00 AM, there is no strict date requirement
+  return { 
+    expectedDate: "1970-01-01", 
+    reason: "未達台灣時間 08:00，無嚴格限制", 
+    requiredType: "yesterday_or_newer" 
+  };
+};
+
+const checkIfTwseIsStale = (twseDataDate: string): { stale: boolean; reason: string; expectedDate: string } => {
+  if (!twseDataDate) {
+    return { stale: true, reason: "無法取得 TWSE 數據交易日期", expectedDate: "" };
+  }
+  const req = getExpectedDateRequirements();
+  if (req.expectedDate === "1970-01-01") {
+    return { stale: false, reason: "未達 08:00，無需套用過期限制", expectedDate: req.expectedDate };
+  }
+  
+  if (twseDataDate < req.expectedDate) {
+    return { 
+      stale: true, 
+      reason: `${req.reason}（TWSE提供日期: ${twseDataDate}，預期至少為: ${req.expectedDate}）`, 
+      expectedDate: req.expectedDate 
+    };
+  }
+  return { stale: false, reason: "TWSE 數據日期符合時效性要求", expectedDate: req.expectedDate };
+};
+
 // Determine the actual trading date of the fetched TWSE stock information
-const getTwseDataDate = (hydratedCandidates?: any[]): string => {
+const getTwseDataDate = (rawQuotes?: any[], hydratedCandidates?: any[]): string => {
+  // 1. Try to extract directly from TWSE raw quotes (STOCK_DAY_ALL array of objects)
+  if (Array.isArray(rawQuotes) && rawQuotes.length > 0) {
+    for (let i = 0; i < Math.min(rawQuotes.length, 5); i++) {
+      const item = rawQuotes[i];
+      if (item && typeof item === "object") {
+        const rawDate = item.Date || item.date || item["Date"] || item["date"] || item["交易日期"] || item["日期"];
+        if (rawDate && typeof rawDate === "string") {
+          const trimmed = rawDate.trim();
+          if (trimmed) {
+            // Parse Minguo/ROC format like "115/06/03" or "1150603" or "115-06-03"
+            const minguoMatch = trimmed.match(/^(\d{2,3})[\/\-]?(\d{2})[\/\-]?(\d{1,2})$/);
+            if (minguoMatch) {
+              const rocYear = parseInt(minguoMatch[1], 10);
+              if (rocYear < 200) {
+                const year = rocYear + 1911;
+                const month = minguoMatch[2];
+                const day = minguoMatch[3].padStart(2, "0");
+                return `${year}-${month}-${day}`;
+              }
+            }
+            
+            // Parse Gregorian format like "2026/06/03" or "20260603" or "2026-06-03"
+            const adMatch = trimmed.match(/^(\d{4})[\/\-]?(\d{2})[\/\-]?(\d{1,2})$/);
+            if (adMatch) {
+              const year = adMatch[1];
+              const month = adMatch[2];
+              const day = adMatch[3].padStart(2, "0");
+              return `${year}-${month}-${day}`;
+            }
+
+            if (trimmed.length >= 6) {
+              return trimmed;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Fallback to hydratedCandidates (FinMind history dates)
   if (hydratedCandidates && hydratedCandidates.length > 0) {
     let maxDate = "";
     for (const stock of hydratedCandidates) {
@@ -240,7 +360,7 @@ const getTwseDataDate = (hydratedCandidates?: any[]): string => {
     }
   }
 
-  // Fallback to Taiwan business date
+  // 3. Fallback to Taiwan business date
   const now = new Date();
   const twNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   const day = twNow.getUTCDay();
@@ -300,6 +420,64 @@ async function fetchFinmindHistory(code: string, startDate: string): Promise<any
   return [];
 }
 
+// Dynamically determine the actual trading date of the TWSE STOCK_DAY_ALL dataset 
+// via HTTP response header parsing and TSMC (2330) benchmark price matching with FinMind.
+async function determineRealTwseDate(rawQuotes: any[], lastModifiedHeader?: string): Promise<string> {
+  // 1. Try to extract from HTTP Last-Modified / Date header
+  if (lastModifiedHeader) {
+    try {
+      const parsedDate = new Date(lastModifiedHeader);
+      // Convert to Taiwan UTC+8 timezone
+      const twTime = new Date(parsedDate.getTime() + 8 * 60 * 60 * 1000);
+      const headerDateYmd = twTime.toISOString().split("T")[0];
+      if (headerDateYmd && headerDateYmd.startsWith("202")) {
+        console.log(`[Twse Date] Analyzed from HTTP Header: ${headerDateYmd}`);
+        return headerDateYmd;
+      }
+    } catch (e) {
+      console.warn("Failed to parse Last-Modified header from TWSE:", e);
+    }
+  }
+
+  // 2. Try benchmark matching using TSMC (2330) FinMind history
+  try {
+    const backupStart = new Date();
+    // Go back 10 days to cover weekends and holidays
+    backupStart.setDate(backupStart.getDate() - 10);
+    const backupStartStr = backupStart.toISOString().split("T")[0];
+    const benchmarkFm = await fetchFinmindHistory("2330", backupStartStr);
+    
+    if (benchmarkFm && benchmarkFm.length > 0) {
+      // Find 2330 in rawQuotes
+      const tsmcItem = rawQuotes.find(q => {
+        const code = String(q.Code || q.SecuritiesCompanyCode || q["代號"] || q["證券代號"] || "").trim();
+        return code === "2330";
+      });
+      if (tsmcItem) {
+        const cleanNum = (val: any) => parseFloat(String(val).replace(/,/g, "")) || 0;
+        const twseClose = cleanNum(tsmcItem.ClosingPrice || tsmcItem.ClosePrice || tsmcItem.Close || tsmcItem["收盤價"]);
+        if (twseClose > 0) {
+          // Find matching close in FinMind history (from newest to oldest)
+          const reversedFm = [...benchmarkFm].reverse();
+          for (const fm of reversedFm) {
+            const fmClose = parseFloat(String(fm.close || 0));
+            if (Math.abs(fmClose - twseClose) < 0.1) {
+              const matchedDate = String(fm.date || "");
+              console.log(`[Twse Date] Matched via TSMC close price matching: ${matchedDate} (Close matches: TWSE ${twseClose} vs FinMind ${fmClose})`);
+              return matchedDate;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to determine TWSE date via benchmark matching:", e);
+  }
+
+  // 3. Fallback to older search approach or system estimate
+  return getTwseDataDate(rawQuotes);
+}
+
 // Dedicated stock analyzer endpoint
 app.post("/api/analyze", async (req, res) => {
   const { industries, filters, period = "1m" } = req.body;
@@ -308,6 +486,7 @@ app.post("/api/analyze", async (req, res) => {
   let rawQuotes: any[] = [];
   let rawPer: any[] = [];
   let rawThreeInsti: any[] = [];
+  let lastModifiedHeader = "";
 
   const missingData: string[] = [];
 
@@ -315,6 +494,7 @@ app.post("/api/analyze", async (req, res) => {
   try {
     const quotesRes = await fetch("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL");
     if (quotesRes.ok) {
+      lastModifiedHeader = quotesRes.headers.get("last-modified") || quotesRes.headers.get("date") || "";
       const text = await quotesRes.text();
       if (text && !text.trim().startsWith("<")) {
         try {
@@ -373,6 +553,10 @@ app.post("/api/analyze", async (req, res) => {
   } catch (e) {
     console.error("Failed to fetch twse three insti trading:", e);
   }
+
+  const twseDataDate = await determineRealTwseDate(rawQuotes, lastModifiedHeader);
+  const staleStatus = checkIfTwseIsStale(twseDataDate);
+  console.log(`[Stale Check] TWSE Data Date of STOCK_DAY_ALL is: "${twseDataDate}". Stale detail:`, staleStatus);
 
   // Helper function to dynamically check multiple keys matching pattern-regex
   const findValueByKeyPatterns = (item: any, patterns: RegExp[]): number => {
@@ -589,10 +773,54 @@ app.post("/api/analyze", async (req, res) => {
 
       historyList.sort((a, b) => a.date.localeCompare(b.date));
 
+      // 3c. Overwrite/Correct current price from FinMind if TWSE was stale or FinMind is newer
+      let updatedSt = { ...st };
+      let historySource = isRealFm ? "FinMind 智庫 API" : "量化智能生成";
+      let finalPreviousPrice = previousPrice;
+
+      if (isRealFm) {
+        const latestFmItem = fmHistory[fmHistory.length - 1];
+        if (latestFmItem) {
+          const fmDate = String(latestFmItem.date || "");
+          const isFmNewerThanTwse = twseDataDate ? (fmDate > twseDataDate) : true;
+          
+          if (staleStatus.stale || isFmNewerThanTwse) {
+            const fmClose = parseFloat(String(latestFmItem.close || 0));
+            if (fmClose > 0) {
+              const fmOpen = parseFloat(String(latestFmItem.open || latestFmItem.close || 0));
+              const fmHigh = parseFloat(String(latestFmItem.max || latestFmItem.high || latestFmItem.close || 0));
+              const fmLow = parseFloat(String(latestFmItem.min || latestFmItem.low || latestFmItem.close || 0));
+              const fmVolume = parseFloat(String(latestFmItem.Trading_Volume || latestFmItem.volume || 0)) / 1000;
+              const fmChange = parseFloat(String(latestFmItem.spread !== undefined ? latestFmItem.spread : (latestFmItem.change || 0)));
+              const fmChangePercent = fmClose > 0 && Math.abs(fmChange) > 0 
+                ? (fmChange / (fmClose - fmChange)) * 100 
+                : 0;
+
+              updatedSt.close = fmClose;
+              updatedSt.currentPrice = fmClose;
+              updatedSt.open = fmOpen;
+              updatedSt.high = fmHigh;
+              updatedSt.low = fmLow;
+              updatedSt.volume = fmVolume;
+              updatedSt.change = fmChange;
+              updatedSt.changePercent = fmChangePercent;
+              
+              if (fmHistory.length > 1) {
+                finalPreviousPrice = parseFloat(String(fmHistory[fmHistory.length - 2].close || 0));
+              } else {
+                finalPreviousPrice = Math.round((fmClose - fmChange) * 10) / 10;
+              }
+
+              historySource = `FinMind 智庫 API (時效性價格補正 ${fmDate})`;
+            }
+          }
+        }
+      }
+
       return {
-        ...st,
-        previousPrice,
-        historySource: isRealFm ? "FinMind 智庫 API" : "量化智能生成",
+        ...updatedSt,
+        previousPrice: finalPreviousPrice,
+        historySource,
         history: historyList.slice(-100) // limit size to conserve Gemini tokens
       };
     })
@@ -790,7 +1018,7 @@ Use Google Search grounding or recent web trends specifically to summarize news 
       parsedData.sources.missing = [...new Set([...parsedData.sources.missing, ...missingData])];
     }
 
-    parsedData.twseDataDate = getTwseDataDate(hydratedCandidates);
+    parsedData.twseDataDate = getTwseDataDate(staleStatus.stale ? undefined : rawQuotes, hydratedCandidates);
     res.json(parsedData);
 
   } catch (error: any) {
@@ -913,7 +1141,7 @@ Use Google Search grounding or recent web trends specifically to summarize news 
       });
 
       const fallbackResponse = {
-        twseDataDate: getTwseDataDate(hydratedCandidates),
+        twseDataDate: getTwseDataDate(staleStatus.stale ? undefined : rawQuotes, hydratedCandidates),
         success: {
           twse: true,
           news: true
