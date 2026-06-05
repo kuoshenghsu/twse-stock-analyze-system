@@ -1180,6 +1180,9 @@ export default function App() {
   const [printingStockCode, setPrintingStockCode] = useState<string | null>(null);
   const [exportModalStock, setExportModalStock] = useState<AnalysisStockResult | null>(null);
 
+  // Determine if the current report corresponds to a custom watchlist analysis
+  const isCustomWatchlist = !!(report && report.scope && (!report.scope.industries || report.scope.industries.length === 0));
+
   // Watchlist & manual tracking states
   const [watchlist, setWatchlist] = useState<string[]>(() => {
     try {
@@ -2413,7 +2416,7 @@ export default function App() {
                     </div>
                     <div className="text-right text-xs font-sans">
                       <span className="font-semibold block text-slate-300">
-                        分析對象: <span className="text-blue-400 font-bold">{report.scope.industries.join(', ')}</span>
+                        分析對象: <span className="text-blue-400 font-bold">{isCustomWatchlist ? '自選追蹤清單' : report.scope.industries.join(', ')}</span>
                       </span>
                     </div>
                   </div>
@@ -2458,15 +2461,15 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 2. Top 5 Stock List Cards */}
+                {/* 2. Stock List Cards */}
                 <div className="space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans pb-1">
                     <div className="flex flex-wrap items-baseline gap-2">
                       <h3 className="font-bold text-slate-100 border-l-4 border-blue-500 pl-2.5 flex items-center gap-1.5 text-base">
-                        <TrendingUp className="w-5 h-5 text-slate-200" /> 【產業前五名最具潛力標的】
+                        <TrendingUp className="w-5 h-5 text-slate-200" /> {isCustomWatchlist ? "【自選追蹤清單個股深度分析】" : "【產業前五名最具潛力標的】"}
                       </h3>
                       <span className="text-xs text-slate-400 font-mono">
-                        (依技術面/籌碼等多重因子綜合排序評分)
+                        {isCustomWatchlist ? `(共分析清單中 ${report.stocks.length} 檔個股)` : "(依技術面/籌碼等多重因子綜合排序評分)"}
                       </span>
                     </div>
 
@@ -2474,27 +2477,28 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          const htmlResult = generateAllHtmlReport(report.stocks.slice(0, 5), report);
+                          const targetStocks = isCustomWatchlist ? report.stocks : report.stocks.slice(0, 5);
+                          const htmlResult = generateAllHtmlReport(targetStocks, report);
                           const blob = new Blob([htmlResult], { type: 'text/html;charset=utf-8;' });
                           const url = URL.createObjectURL(blob);
                           const link = document.createElement('a');
                           link.href = url;
-                          const industryStr = report.scope && report.scope.industries ? report.scope.industries.join('_') : '產業';
-                          link.setAttribute('download', `量化研究報告_${industryStr}_前五名合併報告.html`);
+                          const industryStr = report.scope && report.scope.industries && report.scope.industries.length > 0 ? report.scope.industries.join('_') : '自選追蹤';
+                          link.setAttribute('download', isCustomWatchlist ? `自選追蹤個股深度分析報告_${report.stocks.length}檔.html` : `量化研究報告_${industryStr}_前五名合併報告.html`);
                           document.body.appendChild(link);
                           link.click();
                           document.body.removeChild(link);
                         }}
                         className="print-action-btn flex items-center gap-1.5 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 hover:text-white px-3 py-1.5 rounded-lg transition-all text-xs font-semibold cursor-pointer shadow-sm shadow-emerald-500/5 hover:scale-[1.02]"
-                        title="一鍵匯出包含前五名個股的完整合併報告 HTML/PDF"
+                        title={isCustomWatchlist ? `一鍵匯出包含全部 ${report.stocks.length} 檔自選個股的完整深度分析報告` : "一鍵匯出包含前五名個股的完整合併報告 HTML/PDF"}
                       >
                         <Download className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>匯出前五名合併報告 (HTML/PDF)</span>
+                        <span>{isCustomWatchlist ? `匯出完整自選報告 (${report.stocks.length} 檔)` : "匯出前五名合併報告 (HTML/PDF)"}</span>
                       </button>
                     )}
                   </div>
 
-                  {report.stocks.slice(0, 5).map((stock, index) => (
+                  {(isCustomWatchlist ? report.stocks : report.stocks.slice(0, 5)).map((stock, index) => (
                     <div 
                       key={stock.code} 
                       id={`stock-card-${stock.code}`}
@@ -2798,17 +2802,18 @@ export default function App() {
                   </div>
                 </button>
 
-                {/* Option 2: All Top 5 Industry Stocks Export */}
+                {/* Option 2: Dynamic Watchlist/Industry Stocks Export */}
                 {report && report.stocks && report.stocks.length > 0 && (
                   <button
                     onClick={() => {
-                      const htmlResult = generateAllHtmlReport(report.stocks.slice(0, 5), report);
+                      const targetStocks = isCustomWatchlist ? report.stocks : report.stocks.slice(0, 5);
+                      const htmlResult = generateAllHtmlReport(targetStocks, report);
                       const blob = new Blob([htmlResult], { type: 'text/html;charset=utf-8;' });
                       const url = URL.createObjectURL(blob);
                       const link = document.createElement('a');
                       link.href = url;
-                      const industryStr = report.scope && report.scope.industries ? report.scope.industries.join('_') : '產業';
-                      link.setAttribute('download', `量化研究報告_${industryStr}_前五名合併報告.html`);
+                      const industryStr = report.scope && report.scope.industries && report.scope.industries.length > 0 ? report.scope.industries.join('_') : '自選追蹤';
+                      link.setAttribute('download', isCustomWatchlist ? `自選追蹤個股深度分析報告_${report.stocks.length}檔.html` : `量化研究報告_${industryStr}_前五名合併報告.html`);
                       document.body.appendChild(link);
                       link.click();
                       document.body.removeChild(link);
@@ -2819,10 +2824,10 @@ export default function App() {
                     <Download className="w-5 h-5 text-emerald-400 mt-0.5 group-hover:scale-110 transition-transform" />
                     <div>
                       <span className="font-bold text-emerald-300 block text-sm group-hover:text-emerald-200">
-                        2. 一次匯出『產業前五名』合併報告 (HTML檔)
+                        {isCustomWatchlist ? `2. 一次匯出清單中所有個股 (${report.stocks.length} 檔) 報告` : "2. 一次匯出『產業前五名』合併報告 (HTML檔)"}
                       </span>
                       <span className="text-xs text-slate-300 leading-relaxed block mt-1">
-                        強烈推薦！一鍵匯出目前產業推薦前 5 名所有個股與總體資金走向評核之精美完整報告。可直接按 Ctrl+P 另存為多頁 PDF，快速一次存檔！
+                        {isCustomWatchlist ? `一鍵匯出您自選清單中全部共 ${report.stocks.length} 檔個股與整體分析走向評核之完整報告。` : "強烈推薦！一鍵匯出目前產業推薦前 5 名所有個股與總體資金走向評核之精美完整報告。"}可直接按 Ctrl+P 另存為多頁 PDF，快速一次存檔！
                       </span>
                     </div>
                   </button>
