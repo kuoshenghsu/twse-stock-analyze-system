@@ -479,9 +479,149 @@ async function determineRealTwseDate(rawQuotes: any[], lastModifiedHeader?: stri
   return getTwseDataDate(rawQuotes);
 }
 
+let cachedStockList: Array<{ code: string; name: string }> = [];
+let lastCachedTime = 0;
+const CACHE_DURATION = 15 * 60 * 1000; // 15 mins
+
+async function getStockList() {
+  const now = Date.now();
+  if (cachedStockList.length > 0 && (now - lastCachedTime < CACHE_DURATION)) {
+    return cachedStockList;
+  }
+  
+  try {
+    const res = await fetch("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL");
+    if (res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith("<")) {
+        const rawQuotes = JSON.parse(text);
+        if (Array.isArray(rawQuotes)) {
+          const list = rawQuotes.map((item: any) => {
+            const code = String(item.Code || item.SecuritiesCompanyCode || item["代號"] || item["證券代號"] || "").trim();
+            const name = String(item.Name || item.CompanyName || item.SecuritiesCompanyName || item["名稱"] || item["證券名稱"] || "").trim();
+            return { code, name };
+          }).filter(item => item.code && item.name);
+          
+          if (list.length > 0) {
+            cachedStockList = list;
+            lastCachedTime = now;
+            return cachedStockList;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch stock list for search:", e);
+  }
+  return cachedStockList.length > 0 ? cachedStockList : [];
+}
+
+app.get("/api/search-stocks", async (req, res) => {
+  const query = String(req.query.q || "").trim().toLowerCase();
+  
+  const allStocks = await getStockList();
+  
+  if (!query) {
+    return res.json({ stocks: allStocks.slice(0, 15) });
+  }
+
+  const matches = allStocks.filter(st => {
+    return st.code.includes(query) || st.name.toLowerCase().includes(query);
+  });
+
+  return res.json({ stocks: matches.slice(0, 15) });
+});
+
+// Watchlist price/status retrieval endpoint
+app.post("/api/watchlist-quotes", async (req, res) => {
+  const { codes } = req.body;
+  if (!Array.isArray(codes)) {
+    return res.status(400).json({ error: "codes must be an array" });
+  }
+
+  let rawQuotes: any[] = [];
+  try {
+    const rawQuotesRes = await fetch("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL");
+    if (rawQuotesRes.ok) {
+      const text = await rawQuotesRes.text();
+      if (text && !text.trim().startsWith("<")) {
+        rawQuotes = JSON.parse(text);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch quotes for watchlist:", e);
+  }
+
+  const results = codes.map(code => {
+    const trimmed = String(code).trim();
+    if (!trimmed) return null;
+
+    const found = rawQuotes.find(item => {
+      const itemCode = String(item.Code || item.SecuritiesCompanyCode || item["代號"] || item["證券代號"] || "").trim();
+      return itemCode === trimmed;
+    });
+
+    if (found) {
+      const cleanNum = (val: any) => {
+        if (val === undefined || val === null) return 0;
+        return parseFloat(String(val).replace(/,/g, "")) || 0;
+      };
+      const name = String(found.Name || found.CompanyName || found.SecuritiesCompanyName || found["名稱"] || found["證券名稱"] || "").trim();
+      const close = cleanNum(found.ClosingPrice || found.ClosePrice || found.Close || found["收盤價"]);
+      const change = cleanNum(found.PriceChange || found.Change || found["漲跌"]);
+      // Some TWSE price change fields carry descriptive +/- symbols or values
+      const signCode = String(found["漲跌(＋－)"] || found.PriceChangeSign || "");
+      let finalChange = change;
+      if (signCode.includes("-") || signCode.includes("－")) {
+        finalChange = -Math.abs(change);
+      } else if (signCode.includes("+") || signCode.includes("＋")) {
+        finalChange = Math.abs(change);
+      }
+      
+      const changePercent = close > 0 
+        ? (finalChange / (close - finalChange)) * 100 
+        : 0;
+
+      return {
+        code: trimmed,
+        name,
+        close,
+        change: finalChange,
+        changePercent: Math.round(changePercent * 100) / 100,
+        foundInTwse: true
+      };
+    }
+
+    // fallback to DEFAULT_STOCK_DETAILS
+    const def = DEFAULT_STOCK_DETAILS[trimmed];
+    if (def) {
+      return {
+        code: trimmed,
+        name: def.name,
+        close: def.close,
+        change: 0,
+        changePercent: 0,
+        foundInTwse: false
+      };
+    }
+
+    // generic fallback
+    return {
+      code: trimmed,
+      name: `自選股 ${trimmed}`,
+      close: 100.0,
+      change: 0,
+      changePercent: 0,
+      foundInTwse: false
+    };
+  }).filter(Boolean);
+
+  res.json({ quotes: results });
+});
+
 // Dedicated stock analyzer endpoint
 app.post("/api/analyze", async (req, res) => {
-  const { industries, filters, period = "1m", priceSourceMode = "auto" } = req.body;
+  const { industries, filters, period = "1m", priceSourceMode = "auto", customCode, customCodes } = req.body;
 
   let twseQuotesSuccess = false;
   let rawQuotes: any[] = [];
@@ -577,14 +717,68 @@ app.post("/api/analyze", async (req, res) => {
 
   // 2. Normalize and Map raw stock data to custom representation
   const allowedCodes = new Set<string>();
-  if (Array.isArray(industries)) {
+  const parsedCustomCodes: string[] = [];
+
+  if (Array.isArray(customCodes) && customCodes.length > 0) {
+    customCodes.forEach((c: any) => {
+      const parsed = String(c).trim();
+      if (parsed) {
+        allowedCodes.add(parsed);
+        parsedCustomCodes.push(parsed);
+      }
+    });
+  } else if (customCode && typeof customCode === "string" && customCode.trim()) {
+    customCode.split(",").forEach((c: any) => {
+      const parsed = String(c).trim();
+      if (parsed) {
+        allowedCodes.add(parsed);
+        parsedCustomCodes.push(parsed);
+      }
+    });
+  }
+
+  const isCustomAnalysis = parsedCustomCodes.length > 0;
+
+  if (isCustomAnalysis) {
+    parsedCustomCodes.forEach(trimmedCode => {
+      // Quick check: if rawQuotes doesn't have it, let's inject a simulated/fallback quote manually so processing proceeds
+      const existsInQuotes = rawQuotes.some(item => {
+        const code = String(item.Code || item.SecuritiesCompanyCode || item["代號"] || item["證券代號"] || "").trim();
+        return code === trimmedCode;
+      });
+      
+      if (!existsInQuotes) {
+        const fallbackDetail = DEFAULT_STOCK_DETAILS[trimmedCode] || {
+          name: `個別股 ${trimmedCode}`,
+          close: 100.0,
+          volume: 2500,
+          pe: 15.0,
+          yield: 4.0,
+          foreignBuy: 0,
+          trustBuy: 0,
+          dealerBuy: 0
+        };
+        
+        rawQuotes.push({
+          Code: trimmedCode,
+          Name: fallbackDetail.name || `個別股 ${trimmedCode}`,
+          ClosingPrice: fallbackDetail.close || 100.0,
+          OpeningPrice: fallbackDetail.close || 100.0,
+          HighestPrice: fallbackDetail.close || 100.0,
+          LowestPrice: fallbackDetail.close || 100.0,
+          TradeVolume: (fallbackDetail.volume || 2500) * 1000,
+          PriceChange: 0
+        });
+      }
+    });
+  } else if (Array.isArray(industries)) {
     industries.forEach((ind: string) => {
       const codes = INDUSTRY_CODE_MAP[ind] || [];
       codes.forEach(c => allowedCodes.add(c));
     });
   }
 
-  // If no matching industries were selected (or empty as a defensive block), load all available master codes
+  // If no matching industries or custom code were selected, load all available master codes as fallback
   if (allowedCodes.size === 0) {
     Object.values(INDUSTRY_CODE_MAP).forEach(codes => {
       codes.forEach(c => allowedCodes.add(c));
@@ -689,37 +883,40 @@ app.post("/api/analyze", async (req, res) => {
   });
 
   // 3. Filtering logic purely in Node to pre-select candidates
-  let filtered = [...normalizedStocks];
-
-  // If user selected specific chips or volume parameters, we filter them to stay within limits
-  if (filters.chip?.vol5000) {
-    filtered = filtered.filter(s => s.volume >= 5000);
+  let candidateStocks: any[] = [];
+  if (!isCustomAnalysis) {
+    let filtered = [...normalizedStocks];
+    // If user selected specific chips or volume parameters, we filter them to stay within limits
+    if (filters.chip?.vol5000) {
+      filtered = filtered.filter(s => s.volume >= 5000);
+    }
+    if (filters.chip?.foreignBuy) {
+      filtered = filtered.filter(s => s.foreignBuy > 0);
+    }
+    if (filters.chip?.trustBuy) {
+      filtered = filtered.filter(s => s.trustBuy > 0);
+    }
+    if (filters.technical?.gain5pct) {
+      filtered = filtered.filter(s => s.changePercent >= 5);
+    }
+    filtered.sort((a, b) => b.volume - a.volume);
+    candidateStocks = filtered.slice(0, 20);
+  } else {
+    // Preserve custom selected order and do not filter out requested custom stocks
+    candidateStocks = [...normalizedStocks].slice(0, 15);
   }
-  if (filters.chip?.foreignBuy) {
-    filtered = filtered.filter(s => s.foreignBuy > 0);
-  }
-  if (filters.chip?.trustBuy) {
-    filtered = filtered.filter(s => s.trustBuy > 0);
-  }
-  if (filters.technical?.gain5pct) {
-    filtered = filtered.filter(s => s.changePercent >= 5);
-  }
-
-  // Pick a diversified subset (e.g., top 15 by volume) to pass to Gemini to refine top 5
-  // This keeps the context payload within limits while providing realistic stock symbols
-  filtered.sort((a, b) => b.volume - a.volume);
-  let candidateStocks = filtered.slice(0, 20);
 
   // Soft fallback: If the strict filters returned less than 3 candidates,
   // we soften the constraints by using the broader industry list (normalizedStocks) sorted by volume
-  if (candidateStocks.length < 3 && normalizedStocks.length >= 3) {
+  if (!isCustomAnalysis && candidateStocks.length < 3 && normalizedStocks.length >= 3) {
     const rawIndustryStocks = [...normalizedStocks].sort((a, b) => b.volume - a.volume);
     candidateStocks = rawIndustryStocks.slice(0, 20);
   }
 
   // Dynamically prepare fallback list from requested industries' seeds if OpenAPI returned no candidates
   let finalCandidates: any[] = [];
-  if (candidateStocks.length >= 3) {
+  const reqMin = isCustomAnalysis ? 1 : 3;
+  if (candidateStocks.length >= reqMin) {
     finalCandidates = candidateStocks;
   } else {
     const fallbackList: any[] = [];
@@ -800,28 +997,15 @@ app.post("/api/analyze", async (req, res) => {
               const fmOpen = parseFloat(String(latestFmItem.open || latestFmItem.close || 0));
               const fmHigh = parseFloat(String(latestFmItem.max || latestFmItem.high || latestFmItem.close || 0));
               const fmLow = parseFloat(String(latestFmItem.min || latestFmItem.low || latestFmItem.close || 0));
-              const fmVolume = parseFloat(String(latestFmItem.Trading_Volume || latestFmItem.volume || 0)) / 1000;
-              const fmChange = parseFloat(String(latestFmItem.spread !== undefined ? latestFmItem.spread : (latestFmItem.change || 0)));
-              const fmChangePercent = fmClose > 0 && Math.abs(fmChange) > 0 
-                ? (fmChange / (fmClose - fmChange)) * 100 
-                : 0;
-
-              updatedSt.close = fmClose;
-              updatedSt.currentPrice = fmClose;
-              updatedSt.open = fmOpen;
-              updatedSt.high = fmHigh;
-              updatedSt.low = fmLow;
-              updatedSt.volume = fmVolume;
-              updatedSt.change = fmChange;
-              updatedSt.changePercent = fmChangePercent;
-              
-              if (fmHistory.length > 1) {
-                finalPreviousPrice = parseFloat(String(fmHistory[fmHistory.length - 2].close || 0));
-              } else {
-                finalPreviousPrice = Math.round((fmClose - fmChange) * 10) / 10;
-              }
-
-              historySource = `FinMind 智庫 API (時效性價格補正 ${fmDate})`;
+              updatedSt = {
+                ...updatedSt,
+                close: fmClose,
+                open: fmOpen,
+                high: fmHigh,
+                low: fmLow,
+                change: Math.round((fmClose - (parseFloat(String(latestFmItem.yesterday || fmClose)) || fmClose)) * 100) / 100
+              };
+              finalPreviousPrice = parseFloat(String(latestFmItem.yesterday || fmClose)) || fmClose;
             }
           }
         }
@@ -829,9 +1013,9 @@ app.post("/api/analyze", async (req, res) => {
 
       return {
         ...updatedSt,
-        previousPrice: finalPreviousPrice,
+        history: historyList,
         historySource,
-        history: historyList.slice(-100) // limit size to conserve Gemini tokens
+        previousPrice: finalPreviousPrice
       };
     })
   );
@@ -839,9 +1023,10 @@ app.post("/api/analyze", async (req, res) => {
   // 4. Construct System Instruction and User Query for institutional level stock analyst
   const systemInstruction = `
 You are an elite Taiwanese institutional stock analyst (機構級資深股市分析師) specializing in quantitative finance, tech charts, chip tracking, macroeconomics and industrial competitiveness.
-Your goal is to choose the TOP 5 most potential stocks based on the user's selected industries, screening parameters, and provided real TWSE (臺灣證券交易所上市) OpenAPI / FinMind stock metrics.
+Your goal is to choose and analyze the ${isCustomAnalysis ? "specifically targeted custom stock(s) specified in the candidates" : "TOP 5 most potential stocks"} based on the user's selected industries, screening parameters, and provided real TWSE (臺灣證券交易所上市) OpenAPI / FinMind stock metrics.
+${isCustomAnalysis ? "Since the user explicitly requested analyzing their specific watchlist, you MUST generate a complete analysis record for EACH and EVERY one of the custom stock codes in the Candidate TWSE listings. Do not omit any of them." : ""}
 
-For each of the Top 5 chosen stock, you must calculate/estimate and compile:
+For each of the chosen stock, you must calculate/estimate and compile:
 - Code and Name.
 - Current Closing Price (currentPrice) - You MUST use the exact 'close' or 'currentPrice' value from the provided Candidate TWSE listings.
 - Previous Day price (previousPrice) - Must match the historical baseline price provided.
@@ -851,8 +1036,9 @@ For each of the Top 5 chosen stock, you must calculate/estimate and compile:
 - Main Business Focus (mainBusiness) - Detailed description of the primary focus, key products or activities they sell, and their main role in the sector (主力從事及核心業務).
 - Technical Face Summary (技術面摘要) - detailed 2-3 sentence analysis of MA, MACD or KD trends matching the filters.
 - Chip Face Summary (籌碼面摘要) - detailed 2-3 sentence evaluation of foreign, trust and dealer positions.
-- News Summary (新聞摘要) - 你必須搜集與該個股相關的最新財經新聞或重大消息。**【重要原則】新聞資訊必須優先以「有提及該個股（依名稱或代號）」的具體分析、營運動態、營收與利多/利空事件為主；若最新資訊中「沒有提及該個股的部分」，才能夠「退而求其次以該產業/板塊的最新動態、政策或景氣循環趨勢為主」**。你嚴禁呈現無關的宏觀經濟雜訊（如聯聯準會利率、地緣政治、大盤指數波動等，除非對該板塊有直接且巨大的衝擊）。請使用繁體中文輸出 2-3 句極其精確、簡練的權威媒體（如鉅亨網、經濟日報、工商時報、Yahoo奇摩股市或MoneyDJ）觀點及報導內容。
+- News Summary (新聞摘要) - 你必須搜集與該個股相關的最新財經新聞 or 重大消息。**【重要原則】新聞資訊必須優先以「有提及該個股（依名稱或代號）」的具體分析、營運動態、營收與利多/利空事件為主；若最新資訊中「沒有提及該個股的部分」，才能夠「退而求其次以該產業/板塊的最新動態、政策 or 景氣循環趨勢為主」**。你嚴禁呈現無關的宏觀經濟雜訊（如聯聯準會利率、地緣政治、大盤指數波動等，除非對該板塊有直接且巨大的衝擊）。請使用繁體中文輸出 2-3 句極其精確、簡練的權威媒體（如鉅亨網、經濟日報、工商時報、Yahoo奇摩股市或MoneyDJ）觀點及報導內容。
 - News Article URL (newsUrl) - The actual news article URL (e.g., from CNYES/Juheng, MoneyDJ, Commercial Times, Yahoo Taiwan Finance). If no direct url link can be extracted, must provide a valid fallback portal link for this stock code, such as "https://tw.stock.yahoo.com/q/h?s=股票代碼" or "https://www.google.com/search?q=股票代碼+新聞". It must be a valid complete url starting with http:// or https://.
+- News Sentiment (newsSentiment) - Analyze the sentiment of the retrieved news article or summary for the stock and classify it as exactly one of these strings: "正面", "中性", "負面".
 - Comprehensive Potential Score (綜合評分 1-100) - based strictly on Tech (30%), Chip (25%), Industrial Climate (20%), Fund Flow (15%), and Tech Transition/Competitiveness (10%).
 - Risk Warning (風險提示) - potential downside catalysts or vulnerabilities (such as weak volume, customer premium reduction, currency risk).
 
@@ -874,6 +1060,7 @@ CRITICAL REQUIREMENTS:
   const userQuery = `
 The user has selected:
 - Target Industries: ${industries.join(", ")}
+${isCustomAnalysis ? `- Targeted Custom Stock Code(s) to analyze: ${parsedCustomCodes.join(", ")}` : ""}
 - Active Filter Conditions: ${JSON.stringify(filters)}
 - History Analysis Span: ${period}
 
@@ -883,8 +1070,8 @@ ${JSON.stringify(hydratedCandidates)}
 OpenAPI quotes fetching was: ${twseQuotesSuccess ? "SUCCESS" : "FAILED"}.
 Missing raw parameters (if any): ${JSON.stringify(missingData)}.
 
-Using the above information and your professional intelligence, select the TOP 5 most promising stocks. Compile their analysis.
-Use Google Search grounding specifically to search and summarize the most recent news events (e.g., from Yahoo奇摩股市, 鉅亨網, 經濟日報, 工商時報, or MoneyDJ) for each selected stock. **For each stock, prioritize searching for and summarizing news that explicitly mentions this specific stock by name or stock code (e.g., "聯發科 營收", "2454 新聞"). Only if there are no direct recent mentions or specific news for that stock, should you fall back to summarizing news and tendencies regarding its general industry.**
+Using the above information and your professional intelligence, ${isCustomAnalysis ? "analyze ALL of the provided custom stock(s): " + parsedCustomCodes.join(", ") : "select the TOP 5 most potential stocks"} and compile their analysis.
+Use Google Search grounding specifically to search and summarize the most recent news events (e.g., from Yahoo奇摩股市, 貼文或新聞, 鉅亨網, 經濟日報, 工商時報, or MoneyDJ) for each selected stock. **For each stock, prioritize searching for and summarizing news that explicitly mentions this specific stock by name or stock code (e.g., "${isCustomAnalysis ? parsedCustomCodes[0] : "2330"} 營收", "新聞"). Only if there are no direct recent mentions or specific news for that stock, should you fall back to summarizing news and tendencies regarding its general industry.**
 `;
 
   try {
@@ -953,6 +1140,7 @@ Use Google Search grounding specifically to search and summarize the most recent
                   "mainBusiness",
                   "newsSummary",
                   "newsUrl",
+                  "newsSentiment",
                   "score",
                   "riskAlert"
                 ],
@@ -969,6 +1157,7 @@ Use Google Search grounding specifically to search and summarize the most recent
                   mainBusiness: { type: Type.STRING },
                   newsSummary: { type: Type.STRING },
                   newsUrl: { type: Type.STRING },
+                  newsSentiment: { type: Type.STRING },
                   score: { type: Type.INTEGER },
                   riskAlert: { type: Type.STRING },
                 }
@@ -1370,6 +1559,7 @@ Use Google Search grounding specifically to search and summarize the most recent
           chipSummary: chipText,
           newsSummary: newsText,
           newsUrl: `https://tw.stock.yahoo.com/q/h?s=${s.code}`,
+          newsSentiment: idx === 0 || idx === 1 ? "正面" : "中性",
           score: 86 + (idx === 0 ? 9 : idx === 1 ? 6 : idx === 2 ? 4 : 1) - idx * 2,
           riskAlert: riskText
         };

@@ -92,6 +92,7 @@ export interface AnalysisStockResult {
   mainBusiness: string;
   newsSummary: string;
   newsUrl: string;
+  newsSentiment?: string;
   score: number;
   riskAlert: string;
 }

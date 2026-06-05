@@ -31,7 +31,11 @@ import {
   Download,
   X,
   Printer,
-  ExternalLink
+  ExternalLink,
+  Star,
+  Trash2,
+  Plus,
+  Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IndustryType, FilterCondition, AnalysisResponse, AnalysisStockResult } from './types';
@@ -49,6 +53,110 @@ const INDUSTRIES: { id: IndustryType; label: string; icon: string }[] = [
   { id: '綠能環保', label: '綠能環保', icon: '🌱' },
   { id: '傳產', label: '傳產 (化學/鋼鐵/紡織)', icon: '🏗️' },
   { id: '其他', label: '其他 (TWSE 上市分類)', icon: '📦' }
+];
+
+const AUTOCOMPLETE_STOCKS: { code: string; name: string; english?: string }[] = [
+  // 半導體
+  { code: '2330', name: '台積電', english: 'TSMC' },
+  { code: '2303', name: '聯電', english: 'UMC' },
+  { code: '2454', name: '聯發科', english: 'MediaTek' },
+  { code: '2337', name: '旺宏', english: 'Macronix' },
+  { code: '3711', name: '日月光投控', english: 'ASE' },
+  { code: '2408', name: '南亞科', english: 'Nanya Technology' },
+  { code: '2344', name: '華邦電', english: 'Winbond' },
+  { code: '3034', name: '聯詠', english: 'Novatek' },
+  { code: '3035', name: '智原', english: 'Faraday' },
+  { code: '3532', name: '台勝科', english: 'FST' },
+  { code: '3443', name: '創意', english: 'Global Unichip' },
+  { code: '3661', name: '世芯-KY', english: 'Alchip' },
+  { code: '5269', name: '祥碩', english: 'ASMedia' },
+  { code: '6415', name: '矽力*-KY', english: 'Silergy' },
+  // 電子零組件
+  { code: '2308', name: '台達電', english: 'Delta' },
+  { code: '2327', name: '國巨', english: 'Yageo' },
+  { code: '2317', name: '鴻海', english: 'Foxconn' },
+  { code: '2492', name: '華新科', english: 'Walsin Technology' },
+  { code: '3037', name: '欣興', english: 'Unimicron' },
+  { code: '3189', name: '景碩', english: 'Kinsus' },
+  { code: '3044', name: '健鼎', english: 'Tripod' },
+  { code: '2383', name: '台光電', english: 'EMC' },
+  { code: '3016', name: '嘉晶', english: 'Episil-Precision' },
+  { code: '3324', name: '雙鴻', english: 'Auras' },
+  { code: '6121', name: '新普', english: 'Simplo' },
+  // 電腦及週邊設備
+  { code: '2382', name: '廣達', english: 'Quanta' },
+  { code: '3231', name: '緯創', english: 'Wistron' },
+  { code: '2357', name: '華碩', english: 'ASUS' },
+  { code: '2353', name: '宏碁', english: 'Acer' },
+  { code: '6669', name: '緯穎', english: 'Wiwynn' },
+  { code: '2376', name: '技嘉', english: 'Gigabyte' },
+  { code: '3017', name: '奇鋐', english: 'AVC' },
+  { code: '2301', name: '光寶科', english: 'Lite-On' },
+  // 光電業
+  { code: '3008', name: '大立光', english: 'Largan' },
+  { code: '3406', name: '玉晶光', english: 'GSEO' },
+  { code: '2409', name: '友達', english: 'AUO' },
+  { code: '3481', name: '群創', english: 'Innolux' },
+  { code: '3673', name: 'TPK-KY', english: 'TPK' },
+  // 汽車工業
+  { code: '2201', name: '裕隆', english: 'Yulon' },
+  { code: '2207', name: '和泰車', english: 'Hotai Motor' },
+  { code: '1522', name: '堤維西', english: 'TYC' },
+  { code: '2497', name: '怡利電', english: 'E-Lead Electronic' },
+  { code: '5243', name: '乙盛-KY', english: 'Eson' },
+  // 通訊網路
+  { code: '2412', name: '中華電', english: 'Chunghwa Telecom' },
+  { code: '3045', name: '台灣大', english: 'Taiwan Mobile' },
+  { code: '4904', name: '遠傳', english: 'Far EasTone' },
+  { code: '2345', name: '智邦', english: 'Accton' },
+  { code: '5388', name: '中磊', english: 'Sercomm' },
+  { code: '6285', name: '啟碁', english: 'WNC' },
+  { code: '3596', name: '智易', english: 'Arcadyan' },
+  { code: '4906', name: '正文', english: 'Gemtek' },
+  { code: '3062', name: '建漢', english: 'CyberTAN' },
+  // 生技醫療
+  { code: '1795', name: '美時', english: 'Lotus Pharmaceutical' },
+  { code: '1760', name: '寶齡富錦', english: 'PBF' },
+  { code: '4119', name: '旭富', english: 'Sciopharm' },
+  { code: '4142', name: '國光生', english: 'Adimmune' },
+  { code: '1789', name: '神隆', english: 'ScinoPharm' },
+  { code: '1762', name: '中化生', english: 'CCPC' },
+  { code: '4106', name: '雃博', english: 'APEX Medical' },
+  // 金融保險
+  { code: '2881', name: '富邦金', english: 'Fubon Financial' },
+  { code: '2882', name: '國泰金', english: 'Cathay Financial' },
+  { code: '2891', name: '中信金', english: 'CTBC Financial' },
+  { code: '2886', name: '兆豐金', english: 'Mega Financial' },
+  { code: '2884', name: '玉山金', english: 'E.SUN Financial' },
+  { code: '2892', name: '第一金', english: 'First Financial' },
+  { code: '2885', name: '元大金', english: 'Yuanta Financial' },
+  { code: '2880', name: '華南金', english: 'Hua Nan Financial' },
+  { code: '5880', name: '合庫金', english: 'Taiwan Cooperative Financial' },
+  // 航運物流
+  { code: '2603', name: '長榮', english: 'Evergreen' },
+  { code: '2609', name: '陽明', english: 'Yang Ming' },
+  { code: '2615', name: '萬海', english: 'Wan Hai' },
+  { code: '2618', name: '長榮航', english: 'EVA Air' },
+  { code: '2610', name: '華航', english: 'China Airlines' },
+  // 綠能環保
+  { code: '6806', name: '森崴能源', english: 'Shinfox Energy' },
+  { code: '6869', name: '雲豹能源', english: 'JPP' },
+  { code: '1513', name: '中興電', english: 'Chung-Hsin Electric' },
+  { code: '1503', name: '士電', english: 'SEEC' },
+  { code: '1519', name: '華城', english: 'Fortune Electric' },
+  { code: '1514', name: '亞力', english: 'Allis Electric' },
+  // 傳產
+  { code: '2002', name: '中鋼', english: 'China Steel' },
+  { code: '1101', name: '台泥', english: 'TCC' },
+  { code: '1102', name: '亞泥', english: 'Asia Cement' },
+  { code: '1301', name: '台塑', english: 'Formosa Plastics' },
+  { code: '1303', name: '南亞', english: 'Nan Ya Plastics' },
+  { code: '1326', name: '台化', english: 'Formosa Chemicals' },
+  { code: '1216', name: '統一', english: 'Uni-President' },
+  { code: '2105', name: '正新', english: 'Cheng Shin Rubber' },
+  // 其他
+  { code: '2912', name: '統一超', english: 'President Chain Store' },
+  { code: '9904', name: '寶成', english: 'Pou Chen' }
 ];
 
 const INITIAL_FILTERS: FilterCondition = {
@@ -96,6 +204,24 @@ const INITIAL_FILTERS: FilterCondition = {
 const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse | null) => {
   const dateStr = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+  
+  const printSentiment = stock.newsSentiment || "中性";
+  let sentimentBg = "#f1f5f9";
+  let sentimentColor = "#475569";
+  let sentimentBorder = "#cbd5e1";
+  if (printSentiment === "正面") {
+    sentimentBg = "#ecfdf5";
+    sentimentColor = "#047857";
+    sentimentBorder = "#a7f3d0";
+  } else if (printSentiment === "負面") {
+    sentimentBg = "#fef2f2";
+    sentimentColor = "#b91c1c";
+    sentimentBorder = "#fecaca";
+  } else if (printSentiment === "中性") {
+    sentimentBg = "#fffbeb";
+    sentimentColor = "#d97706";
+    sentimentBorder = "#fef3c7";
+  }
   
   const conclusionHtml = report && report.conclusion ? `
     <div class="section" style="margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
@@ -500,6 +626,12 @@ const generateHtmlReport = (stock: AnalysisStockResult, report: AnalysisResponse
         ` : ''}
       </div>
       <div class="section-content">
+        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 11px; font-weight: bold; padding: 3px 9px; border-radius: 99px; background-color: ${sentimentBg}; color: ${sentimentColor}; border: 1px solid ${sentimentBorder}; display: inline-flex; align-items: center; gap: 4px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${sentimentColor};"></span>
+            新聞情緒分析指標 Sentiment: ${printSentiment}
+          </span>
+        </div>
         <div class="news-box">
           「${stock.newsSummary}」
         </div>
@@ -571,7 +703,25 @@ const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisRe
     </div>
   ` : '';
 
-  const stocksHtml = stocks.map((stock, index) => `
+  const stocksHtml = stocks.map((stock, index) => {
+    const printSentiment = stock.newsSentiment || "中性";
+    let sentimentBg = "#f1f5f9";
+    let sentimentColor = "#475569";
+    let sentimentBorder = "#cbd5e1";
+    if (printSentiment === "正面") {
+      sentimentBg = "#ecfdf5";
+      sentimentColor = "#047857";
+      sentimentBorder = "#a7f3d0";
+    } else if (printSentiment === "負面") {
+      sentimentBg = "#fef2f2";
+      sentimentColor = "#b91c1c";
+      sentimentBorder = "#fecaca";
+    } else if (printSentiment === "中性") {
+      sentimentBg = "#fffbeb";
+      sentimentColor = "#d97706";
+      sentimentBorder = "#fef3c7";
+    }
+    return `
     <div class="stock-section ${index < stocks.length - 1 ? 'page-break' : ''}">
       <div class="stock-header">
         <div class="rank-badge">推薦第 ${index + 1} 名</div>
@@ -623,6 +773,12 @@ const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisRe
           ` : ''}
         </div>
         <div class="section-content">
+          <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; font-weight: bold; padding: 3px 9px; border-radius: 99px; background-color: ${sentimentBg}; color: ${sentimentColor}; border: 1px solid ${sentimentBorder}; display: inline-flex; align-items: center; gap: 4px;">
+              <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${sentimentColor};"></span>
+              新聞情緒分析指標 Sentiment: ${printSentiment}
+            </span>
+          </div>
           <div class="news-box">
             「${stock.newsSummary}」
           </div>
@@ -633,13 +789,13 @@ const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisRe
         <h3 class="section-title">⚠️ 風險防守與關鍵注意</h3>
         <div class="risk-banner">
           <div>
-            <div class="risk-banner-title">理財防守提示：</div>
+            <div class="risk-banner-title">理緩防守提示：</div>
             <p class="risk-banner-desc">${stock.riskAlert}</p>
           </div>
         </div>
       </div>
     </div>
-  `).join('');
+  `; }).join('');
 
   return `<!DOCTYPE html>
 <html lang="zh-TW">
@@ -1024,6 +1180,300 @@ export default function App() {
   const [printingStockCode, setPrintingStockCode] = useState<string | null>(null);
   const [exportModalStock, setExportModalStock] = useState<AnalysisStockResult | null>(null);
 
+  // Watchlist & manual tracking states
+  const [watchlist, setWatchlist] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('tw_watchlist');
+      // Use standard default codes if local storage is empty
+      return stored ? JSON.parse(stored) : ['2330', '2317', '2454'];
+    } catch (_) {
+      return ['2330', '2317', '2454'];
+    }
+  });
+
+  const [watchlistInput, setWatchlistInput] = useState<string>('');
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [apiSuggestions, setApiSuggestions] = useState<Array<{ code: string; name: string; english?: string }>>([]);
+
+  // Debounced real-time suggestions fetch from the complete TWSE stock list
+  useEffect(() => {
+    const query = watchlistInput.trim();
+    if (!query) {
+      setApiSuggestions([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search-stocks?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.stocks)) {
+            setApiSuggestions(data.stocks);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch autocomplete suggestions from API:', err);
+      }
+    }, 250); // 250ms debounce
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [watchlistInput]);
+
+  const filteredSuggestions = (() => {
+    const query = watchlistInput.trim().toLowerCase();
+    if (!query) return [];
+
+    // Prioritize direct matches from primary local HOT assets dictionary
+    const localMatches = AUTOCOMPLETE_STOCKS.filter(st => {
+      return (
+        st.code.includes(query) ||
+        st.name.toLowerCase().includes(query) ||
+        (st.english && st.english.toLowerCase().includes(query))
+      );
+    });
+
+    // Map fetched API suggestions to standard schema
+    const apiMatches = apiSuggestions.map(st => ({
+      code: st.code,
+      name: st.name,
+      english: st.english || ''
+    }));
+
+    // Merge without duplicates favoring hot predefined metadata
+    const merged = [...localMatches];
+    const seen = new Set(localMatches.map(st => st.code));
+    
+    apiMatches.forEach(st => {
+      if (!seen.has(st.code)) {
+        seen.add(st.code);
+        merged.push(st);
+      }
+    });
+
+    return merged.slice(0, 10);
+  })();
+
+  const [watchlistQuotes, setWatchlistQuotes] = useState<Array<{
+    code: string;
+    name: string;
+    close: number;
+    change: number;
+    changePercent: number;
+    foundInTwse?: boolean;
+  }>>([]);
+  const [fetchingWatchlist, setFetchingWatchlist] = useState<boolean>(false);
+
+  const fetchWatchlistQuotes = async (currentWatchlist: string[]) => {
+    if (currentWatchlist.length === 0) {
+      setWatchlistQuotes([]);
+      return;
+    }
+    setFetchingWatchlist(true);
+    try {
+      const res = await fetch('/api/watchlist-quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes: currentWatchlist })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.quotes)) {
+          setWatchlistQuotes(data.quotes);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load watchlist quotes:', err);
+    } finally {
+      setFetchingWatchlist(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWatchlistQuotes(watchlist);
+  }, [watchlist]);
+
+  const handleAddToWatchlist = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanInput = watchlistInput.trim();
+    if (!cleanInput) return;
+    
+    // Attempt to map name/english to stock code if it is in our dictionary
+    let targetCode = cleanInput;
+    const foundMatch = AUTOCOMPLETE_STOCKS.find(st => 
+      st.name === cleanInput || 
+      st.name.toLowerCase() === cleanInput.toLowerCase() || 
+      (st.english && st.english.toLowerCase() === cleanInput.toLowerCase())
+    );
+    if (foundMatch) {
+      targetCode = foundMatch.code;
+    }
+
+    if (!/^[A-Za-z0-9]{4,6}$/.test(targetCode)) {
+      alert('請輸入正確的台灣股票代號（4-6碼）或搜尋建議清單中的個股名稱（例如：台積電、2330、TSMC）。');
+      return;
+    }
+
+    if (watchlist.includes(targetCode)) {
+      alert('該個股已在您的自選追蹤清單中。');
+      return;
+    }
+
+    const updated = [...watchlist, targetCode];
+    setWatchlist(updated);
+    setWatchlistInput('');
+    setShowSuggestions(false);
+    try {
+      localStorage.setItem('tw_watchlist', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save watchlist to localStorage:', err);
+    }
+  };
+
+  const handleRemoveFromWatchlist = (codeToRemove: string) => {
+    const updated = watchlist.filter(code => code !== codeToRemove);
+    setWatchlist(updated);
+    try {
+      localStorage.setItem('tw_watchlist', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save watchlist to localStorage:', err);
+    }
+  };
+
+  const handleAddCodeToWatchlist = (code: string) => {
+    if (watchlist.includes(code)) return;
+    const updated = [...watchlist, code];
+    setWatchlist(updated);
+    try {
+      localStorage.setItem('tw_watchlist', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save watchlist to localStorage:', err);
+    }
+  };
+
+  const analyzeCustomStock = async (code: string) => {
+    setLoading(true);
+    setError(null);
+    setReport(null);
+
+    const logMessages = [
+      `⚡ 正在為自選個股 [${code}] 下載並剖析最新行情與籌碼數據...`,
+      '📈 計算當日價格走勢與成交量能指標...',
+      '👥 解析該個股之三大法人、投信、自營商籌碼買賣紀錄...',
+      '🤖 啟動 Gemini 3.5 智能理財專家，調閱最新與該個股相關的重大財經財商事件...',
+      '🔍 綜合提煉深度報告、客觀評估產業地位以及風險提示...'
+    ];
+
+    let currentLogIdx = 0;
+    setLoadingProgress(logMessages[0]);
+    
+    const interval = setInterval(() => {
+      currentLogIdx++;
+      if (currentLogIdx < logMessages.length) {
+        setLoadingProgress(logMessages[currentLogIdx]);
+      }
+    }, 2500);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          industries: [],
+          filters: {
+            fundamental: { peLower: 0, peUpper: 200, yieldLower: 0, pbUpper: 20 },
+            chip: { foreignBuy: false, trustBuy: false },
+            technical: { gain5pct: false }
+          },
+          period: analysisPeriod,
+          priceSourceMode,
+          customCode: code
+        })
+      });
+
+      clearInterval(interval);
+
+      if (!res.ok) {
+        throw new Error('伺服器分析或網際網路通道超時，請重新選取條件並再次分析。');
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.message || '分析失敗');
+      }
+
+      setReport(data);
+    } catch (err: any) {
+      clearInterval(interval);
+      setError(err.message || '連線中斷，請重試');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzeWatchlistAll = async () => {
+    if (watchlist.length === 0) {
+      alert('您的自選追蹤清單目前為空，請先新增個股代號！');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setReport(null);
+
+    const logMessages = [
+      `⚡ 正在為您清單中所有的自選個股 [${watchlist.join(', ')}] 調取最新行情數據...`,
+      '📈 全面交叉分析當日價格走勢與大盤成交量能指標...',
+      '👥 解析清單中所有個股之三大法人、投信、自營商聯動籌碼流向...',
+      '🤖 啟動 Gemini 3.5 智能理財專家，深度調研這批自選股之最新財商事件與重大消息...',
+      '🔍 綜合提煉多股對比深度報告、估計各自目標價、操作區間及配置提示...'
+    ];
+
+    let currentLogIdx = 0;
+    setLoadingProgress(logMessages[0]);
+    
+    const interval = setInterval(() => {
+      currentLogIdx++;
+      if (currentLogIdx < logMessages.length) {
+        setLoadingProgress(logMessages[currentLogIdx]);
+      }
+    }, 2500);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          industries: [],
+          filters: {
+            fundamental: { peLower: 0, peUpper: 200, yieldLower: 0, pbUpper: 20 },
+            chip: { foreignBuy: false, trustBuy: false },
+            technical: { gain5pct: false }
+          },
+          period: analysisPeriod,
+          priceSourceMode,
+          customCodes: watchlist
+        })
+      });
+
+      clearInterval(interval);
+
+      if (!res.ok) {
+        throw new Error('伺服器分析或網際網路通道超時，請重新選取條件並再次分析。');
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.message || '分析失敗');
+      }
+
+      setReport(data);
+    } catch (err: any) {
+      clearInterval(interval);
+      setError(err.message || '連線中斷，請重試');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getTaiwanDateStr = () => {
     try {
       const formatter = new Intl.DateTimeFormat('zh-TW', {
@@ -1302,6 +1752,154 @@ export default function App() {
               >
                 <span>🛡️ 總經防守殖利率股</span>
               </button>
+            </div>
+          </div>
+
+          {/* ⭐ Custom Watchlist Tracker (自選個股追蹤與分析) */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4 shadow-sm backdrop-blur-md">
+            <h2 className="text-sm font-bold text-slate-200 mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse" /> 自選個股追蹤
+              </span>
+              <span className="text-[10px] bg-white/10 border border-white/15 px-2 py-0.5 rounded-full text-slate-300 font-mono">
+                {watchlist.length} 檔追蹤中
+              </span>
+            </h2>
+
+            {/* Quick manual entry form */}
+            <form onSubmit={handleAddToWatchlist} className="flex gap-2 mb-4 animate-fade-in relative">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={watchlistInput}
+                  onChange={e => {
+                    setWatchlistInput(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder="輸入代碼或中文/英文名稱"
+                  maxLength={16}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                />
+                
+                {/* Autocomplete Dropdown suggestions list */}
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-[99] max-h-64 overflow-y-auto bg-slate-900 border border-white/15 rounded-lg shadow-2xl backdrop-blur-md divide-y divide-white/5 animate-fade-in">
+                    {filteredSuggestions.map((st) => (
+                      <button
+                        key={st.code}
+                        type="button"
+                        onMouseDown={() => {
+                          setWatchlistInput(st.code);
+                          setShowSuggestions(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-blue-600/20 hover:text-white flex items-center justify-between transition-colors cursor-pointer font-sans"
+                      >
+                        <span className="font-semibold flex items-center gap-1.5">
+                          <span className="text-white">{st.name}</span>
+                          <span className="text-slate-400 text-[10px] font-mono">({st.code})</span>
+                        </span>
+                        {st.english && (
+                          <span className="text-[10px] text-slate-500 font-mono italic max-w-[120px] truncate">
+                            {st.english}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/20 rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>新增</span>
+              </button>
+            </form>
+
+            {/* List of watchlisted stock quotes */}
+            {fetchingWatchlist && watchlistQuotes.length === 0 ? (
+              <div className="text-center py-4 text-xs text-slate-400 font-mono">
+                <RefreshCw className="w-4 h-4 mx-auto mb-1 animate-spin text-blue-400" />
+                正在下載自選股 OpenAPI 行情資料...
+              </div>
+            ) : watchlistQuotes.length === 0 ? (
+              <div className="text-center py-4 text-xs text-slate-500 border border-dashed border-white/10 rounded-lg p-3">
+                追蹤清單為空。輸入代碼並點擊＋新增自選股。
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {watchlistQuotes.map((quote) => {
+                  const isUp = quote.change > 0;
+                  const isDown = quote.change < 0;
+                  const changeColor = isUp ? 'text-rose-400' : isDown ? 'text-emerald-400' : 'text-slate-400';
+                  const changeBg = isUp ? 'bg-rose-500/10 border-rose-500/20' : isDown ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-500/10 border-slate-500/20';
+                  
+                  return (
+                    <div 
+                      key={quote.code}
+                      className="group flex items-center justify-between bg-black/20 border border-white/5 hover:border-white/10 rounded-lg p-2.5 transition-all"
+                    >
+                      {/* Left: Code & Name (Interactive analyze trigger) */}
+                      <button
+                        onClick={() => analyzeCustomStock(quote.code)}
+                        className="flex-1 text-left flex flex-col cursor-pointer bg-transparent border-none p-0 focus:outline-none"
+                        title="點擊直接呼叫分析系統，開啟 AI 深度剖析"
+                        type="button"
+                      >
+                        <span className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors flex items-center gap-1">
+                          {quote.name || `自選股 ${quote.code}`}
+                          <span className="text-[10px] text-slate-400 font-mono font-normal">({quote.code})</span>
+                        </span>
+                        <span className="text-[10px] text-blue-500 hidden group-hover:inline font-semibold">
+                          ⚡ 點擊啟動 AI 深度分析
+                        </span>
+                      </button>
+
+                      {/* Right: Quick Quote Status */}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-xs font-bold text-slate-200 font-mono">
+                            NT$ {quote.close?.toFixed(1) || quote.close}
+                          </div>
+                          <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded font-bold border ${changeBg} ${changeColor}`}>
+                            {isUp ? '▲' : isDown ? '▼' : ''}
+                            {quote.changePercent ? `${isUp ? '+' : ''}${quote.changePercent}%` : '0.00%'}
+                          </span>
+                        </div>
+
+                        {/* Remove Action */}
+                        <button
+                          onClick={() => handleRemoveFromWatchlist(quote.code)}
+                          className="p-1 text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded transition-all cursor-pointer bg-transparent focus:outline-none"
+                          title="移除追蹤"
+                          type="button"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {watchlist.length > 0 && (
+              <button
+                type="button"
+                onClick={analyzeWatchlistAll}
+                disabled={loading}
+                className="w-full mt-3 bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-600 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white border border-blue-400/20 rounded-lg py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-lg hover:shadow-indigo-500/15 cursor-pointer focus:outline-none"
+              >
+                <Cpu className="w-3.5 h-3.5 animate-pulse text-cyan-300" />
+                <span>一次分析清單中所有個股 ({watchlist.length} 檔)</span>
+              </button>
+            )}
+            
+            <div className="mt-2.5 pt-2 border-t border-white/5 text-[10.5px] text-slate-400 text-center leading-relaxed">
+              💡 提示：點擊自選個股可直接啟動 <b>AI 終端系統</b>，對該檔個股深度分析本益比、三大法人籌碼與最新新聞！
             </div>
           </div>
 
@@ -1920,6 +2518,23 @@ export default function App() {
 
                         {/* score & print controls */}
                         <div className="flex items-center gap-3">
+                          {watchlist.includes(stock.code) ? (
+                            <span className="flex items-center gap-1 bg-amber-500/15 text-amber-400 border border-amber-500/25 text-xs px-2.5 py-1 rounded select-none">
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                              <span className="hidden sm:inline">已在自選</span>
+                              <span className="sm:hidden">已選</span>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleAddCodeToWatchlist(stock.code)}
+                              className="flex items-center gap-1 bg-amber-500/25 hover:bg-amber-500/40 text-amber-300 hover:text-amber-100 border border-amber-500/30 text-xs px-2.5 py-1 rounded transition-colors cursor-pointer"
+                              title="將此個股加入自選追蹤清單"
+                            >
+                              <Star className="w-3.5 h-3.5 text-amber-400" />
+                              <span>加入自選</span>
+                            </button>
+                          )}
+
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-semibold text-slate-400">綜合評分:</span>
                             <span className="bg-emerald-600 border border-emerald-500/10 text-white font-mono text-xs font-extrabold px-2.5 py-1 rounded shadow-inner">
@@ -1992,10 +2607,37 @@ export default function App() {
                         </div>
 
                         <div>
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-                            <span className="font-bold text-white flex items-center gap-1 bg-white/5 border border-white/5 px-2.5 py-1 rounded text-xs w-fit">
-                              <Newspaper className="w-3.5 h-3.5 text-slate-400" /> 當日財經新聞輿論摘要 (Anue 鉅亨網/經濟日報關鍵觀點)
-                            </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-white flex items-center gap-1 bg-white/5 border border-white/5 px-2.5 py-1 rounded text-xs w-fit">
+                                <Newspaper className="w-3.5 h-3.5 text-slate-400" /> 當日財經新聞輿論摘要 (Anue 鉅亨網/經濟日報關鍵觀點)
+                              </span>
+                              {(() => {
+                                const sentiment = stock.newsSentiment || "中性";
+                                if (sentiment === "正面") {
+                                  return (
+                                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 animate-pulse">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                      正面輿情
+                                    </span>
+                                  );
+                                } else if (sentiment === "負面") {
+                                  return (
+                                    <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                      負面輿情
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                      中性輿情
+                                    </span>
+                                  );
+                                }
+                              })()}
+                            </div>
                             {stock.newsUrl && (
                               <a
                                 href={stock.newsUrl}
