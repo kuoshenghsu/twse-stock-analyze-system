@@ -51,6 +51,9 @@ const INDUSTRIES: { id: IndustryType; label: string; icon: string }[] = [
   { id: '金融保險', label: '金融保險', icon: '🏦' },
   { id: '航運物流', label: '航運物流', icon: '🚢' },
   { id: '綠能環保', label: '綠能環保', icon: '🌱' },
+  { id: '建材營造', label: '建材營造 (營建建商/都更/重劃區開發)', icon: '🏢' },
+  { id: '觀光餐旅', label: '觀光餐旅 (飯店/餐飲集團/旅行社)', icon: '🏨' },
+  { id: '電機機械', label: '電機機械 (重電/工具機/自動化)', icon: '⚙️' },
   { id: '傳產', label: '傳產 (化學/鋼鐵/紡織)', icon: '🏗️' },
   { id: '其他', label: '其他 (TWSE 上市分類)', icon: '📦' }
 ];
@@ -145,6 +148,21 @@ const AUTOCOMPLETE_STOCKS: { code: string; name: string; english?: string }[] = 
   { code: '1503', name: '士電', english: 'SEEC' },
   { code: '1519', name: '華城', english: 'Fortune Electric' },
   { code: '1514', name: '亞力', english: 'Allis Electric' },
+  // 建材營造
+  { code: '2542', name: '興富發', english: 'Highwealth' },
+  { code: '2548', name: '華固', english: 'Huaku' },
+  { code: '5534', name: '長虹', english: 'Chong Hong' },
+  { code: '2501', name: '國建', english: 'Cathay Red' },
+  // 觀光餐旅
+  { code: '2707', name: '晶華', english: 'Silks Place' },
+  { code: '2727', name: '王品', english: 'Wowprime' },
+  { code: '2731', name: '雄獅', english: 'Lion Travel' },
+  { code: '2753', name: '八方雲集', english: 'Bafang Dumpling' },
+  // 電機機械
+  { code: '1504', name: '東元', english: 'TECO' },
+  { code: '1501', name: '士林電機', english: 'Shihlin Electric' },
+  { code: '2049', name: '上銀', english: 'HIWIN' },
+  { code: '1508', name: '亞德客-KY', english: 'AirTAC' },
   // 傳產
   { code: '2002', name: '中鋼', english: 'China Steel' },
   { code: '1101', name: '台泥', english: 'TCC' },

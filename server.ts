@@ -42,6 +42,15 @@ const INDUSTRY_CODE_MAP: Record<string, string[]> = {
   "綠能環保": [
     "6806", "6869", "1513", "1503", "1519", "1514"
   ],
+  "建材營造": [
+    "2542", "2548", "5534", "2501"
+  ],
+  "觀光餐旅": [
+    "2707", "2727", "2731", "2753"
+  ],
+  "電機機械": [
+    "1504", "1501", "2049", "1508"
+  ],
   "傳產": [
     "2002", "1101", "1102", "1301", "1303", "1326", "1216", "2105"
   ],
@@ -151,7 +160,22 @@ const DEFAULT_STOCK_DETAILS: Record<string, { name: string; close: number; volum
   "2207": { name: "和泰車", close: 612.0, volume: 820, pe: 11.8, yield: 5.2, foreignBuy: 340, trustBuy: 85, dealerBuy: -15 },
   "1522": { name: "堤維西", close: 52.8, volume: 9400, pe: 13.2, yield: 4.1, foreignBuy: 1150, trustBuy: 320, dealerBuy: 80 },
   "2497": { name: "怡利電", close: 64.5, volume: 1800, pe: 18.5, yield: 2.8, foreignBuy: 210, trustBuy: 45, dealerBuy: 5 },
-  "5243": { name: "乙盛-KY", close: 61.2, volume: 2950, pe: 15.1, yield: 3.5, foreignBuy: 410, trustBuy: 10, dealerBuy: -8 }
+  "5243": { name: "乙盛-KY", close: 61.2, volume: 2950, pe: 15.1, yield: 3.5, foreignBuy: 410, trustBuy: 10, dealerBuy: -8 },
+  // 建材營造 (新增)
+  "2542": { name: "興富發", close: 56.5, volume: 12000, pe: 19.5, yield: 3.8, foreignBuy: 2450, trustBuy: 850, dealerBuy: 110 },
+  "2548": { name: "華固", close: 142.0, volume: 2100, pe: 12.8, yield: 5.5, foreignBuy: 480, trustBuy: 150, dealerBuy: -20 },
+  "5534": { name: "長虹", close: 118.5, volume: 1800, pe: 11.2, yield: 5.9, foreignBuy: 310, trustBuy: 80, dealerBuy: 5 },
+  "2501": { name: "國建", close: 32.4, volume: 4200, pe: 14.5, yield: 4.2, foreignBuy: 850, trustBuy: 120, dealerBuy: 15 },
+  // 觀光餐旅 (新增)
+  "2707": { name: "晶華", close: 225.0, volume: 850, pe: 18.5, yield: 4.5, foreignBuy: 120, trustBuy: 30, dealerBuy: -4 },
+  "2727": { name: "王品", close: 245.0, volume: 1100, pe: 15.2, yield: 3.8, foreignBuy: 210, trustBuy: 45, dealerBuy: 12 },
+  "2731": { name: "雄獅", close: 135.0, volume: 1500, pe: 12.4, yield: 5.2, foreignBuy: 540, trustBuy: 110, dealerBuy: 8 },
+  "2753": { name: "八方雲集", close: 168.0, volume: 750, pe: 19.2, yield: 4.1, foreignBuy: 180, trustBuy: 5, dealerBuy: 2 },
+  // 電機機械 (新增)
+  "1504": { name: "東元", close: 54.2, volume: 11500, pe: 14.8, yield: 4.2, foreignBuy: 3100, trustBuy: 1450, dealerBuy: 240 },
+  "1501": { name: "士林電機", close: 225.5, volume: 4200, pe: 26.5, yield: 1.8, foreignBuy: 850, trustBuy: 310, dealerBuy: -15 },
+  "2049": { name: "上銀", close: 235.0, volume: 3800, pe: 28.1, yield: 2.1, foreignBuy: 540, trustBuy: 225, dealerBuy: 8 },
+  "1508": { name: "亞德客-KY", close: 980.5, volume: 1120, pe: 24.2, yield: 1.5, foreignBuy: -320, trustBuy: 140, dealerBuy: 11 }
 };
 
 const app = express();
@@ -1367,6 +1391,12 @@ Use Google Search grounding specifically to search and summarize the most recent
           newsText = `鉅亨網報導，受惠於地緣性航道管制、全球供應鏈補庫需求與運價多頭盤整，【${sName}】在運力調度及航空/航海客貨雙線需求暢旺下極具營運優勢，法人評估下半年獲利將優於預期。`;
         } else if (stockIndustry === "綠能環保") {
           newsText = `經濟日報指出，配合強韌電網公共補貼、光電風電等綠能基礎建設大單交付推進，【${sName}】在手訂單能見度極高，多款利基型高功率重電設備出貨比重拉升，奠定其穩健的利潤表現。`;
+        } else if (stockIndustry === "建材營造") {
+          newsText = `工商時報深度報導，受惠於大案入帳迎接密集入帳黃金期，配合自住剛性需求與重劃區開發熱度，【${sName}】近期成屋及合建案交屋順暢。法人預期在新案能見度明朗及高坪效產品熱銷下，營運動能將持穩向上。`;
+        } else if (stockIndustry === "觀光餐旅") {
+          newsText = `鉅亨網指出，在暑期旺季及國內外商務旅遊暢旺的推波助瀾下，【${sName}】餐飲、客房營運及旅行社包機出團表現極佳。隨各品牌展店計畫陸續推進，市場期待全年獲利可望刷新歷史新高。`;
+        } else if (stockIndustry === "電機機械") {
+          newsText = `經濟日報指出，受惠於半導體先進製程設備國產化、海外基建重電訂單與工業自動化轉型需求，【${sName}】旗下高精精密組件或空壓/伺服器電機產品訂單熱絡，奠定長期穩固利潤增長。`;
         } else if (stockIndustry === "傳產") {
           newsText = `MoneyDJ理財網指出，受惠於製造業存銷比重回健康水位與新一代環保高價值材料投產，【${sName}】的核心產能利用率迎來觸底回暖。隨著利差收窄已見技術性拐點，長線綠色轉型效益可期。`;
         } else {
