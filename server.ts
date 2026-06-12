@@ -1274,8 +1274,8 @@ Use Google Search grounding specifically to search and summarize the most recent
         activeFiltersList.push("多因子基準量化過濾");
       }
 
-      // Map candidates: if custom watchlist is analyzed, compile ALL. Otherwise, use top 5 for industries.
-      const selection = isCustomAnalysis ? finalCandidates : finalCandidates.slice(0, 5);
+      // Map candidates: if custom watchlist is analyzed, compile ALL. Otherwise, use top 10 for industries.
+      const selection = isCustomAnalysis ? finalCandidates : finalCandidates.slice(0, 10);
       const mappedStocks = selection.map((s: any, idx: number) => {
         const price = s.close || s.currentPrice || 120;
         const lowerTarget = (price * 1.11).toFixed(1);
