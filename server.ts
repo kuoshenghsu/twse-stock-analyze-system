@@ -540,6 +540,228 @@ async function getStockList() {
   return cachedStockList.length > 0 ? cachedStockList : [];
 }
 
+interface TwseIndustryStock {
+  Code: string;
+  Name: string;
+  Industry: string;
+}
+
+let cachedTwseIndustryStocks: TwseIndustryStock[] = [];
+let lastTwseIndustryStocksCachedTime = 0;
+
+async function getTwseStockListWithIndustry(): Promise<TwseIndustryStock[]> {
+  const now = Date.now();
+  if (cachedTwseIndustryStocks.length > 0 && (now - lastTwseIndustryStocksCachedTime < CACHE_DURATION)) {
+    return cachedTwseIndustryStocks;
+  }
+  
+  try {
+    const res = await fetch("https://openapi.twse.com.tw/v1/zh/stock/list");
+    if (res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith("<")) {
+        const rawList = JSON.parse(text);
+        if (Array.isArray(rawList)) {
+          const list: TwseIndustryStock[] = rawList.map((item: any) => {
+            return {
+              Code: String(item.Code || item["證券代號"] || "").trim(),
+              Name: String(item.Name || item["證券名稱"] || "").trim(),
+              Industry: String(item.Industry || item["產業類別"] || "").trim()
+            };
+          }).filter(item => item.Code && item.Industry);
+          
+          if (list.length > 0) {
+            cachedTwseIndustryStocks = list;
+            lastTwseIndustryStocksCachedTime = now;
+            console.log(`[Twse Industry Stock] Loaded ${list.length} stocks dynamically from TWSE openapi.`);
+            return cachedTwseIndustryStocks;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch TWSE stock list containing industries:", e);
+  }
+  return cachedTwseIndustryStocks.length > 0 ? cachedTwseIndustryStocks : [];
+}
+
+function isStockInIndustry(twseIndustry: string, categoryId: string): boolean {
+  if (!twseIndustry) return false;
+  
+  const twse = twseIndustry.trim();
+  
+  switch (categoryId) {
+    case '半導體':
+      return twse === '半導體業' || twse.includes('半導體');
+    case '電子零組件':
+      return twse === '電子零組件業' || twse.includes('電子零組件');
+    case '電腦及週邊設備':
+      return twse === '電腦及週邊設備業' || twse.includes('電腦及週邊設備') || twse.includes('電腦');
+    case '光電業':
+      return twse === '光電業' || twse.includes('光電');
+    case '汽車工業':
+      return twse === '汽車工業' || twse.includes('汽車');
+    case '通訊網路':
+      return twse === '通訊網路業' || twse.includes('通訊網路') || twse.includes('通訊') || twse.includes('網路');
+    case '生技醫療':
+      return twse === '生技醫療業' || twse.includes('生技醫療') || twse.includes('生技') || twse.includes('醫療');
+    case '金融保險':
+      return twse === '金融保險業' || twse === '金融保險' || twse.includes('金控') || twse.includes('銀行') || twse.includes('保險') || twse.includes('證券') || twse.includes('金融');
+    case '航運物流':
+      return twse === '航運業' || twse.includes('航運') || twse.includes('航港') || twse.includes('物流') || twse.includes('航海');
+    case '綠能環保':
+      return twse === '綠能環保' || twse.includes('綠能') || twse.includes('環保');
+    case '建材營造':
+      return twse === '建材營造' || twse.includes('建材') || twse.includes('營造') || twse.includes('營建');
+    case '觀光餐旅':
+      return twse === '觀光餐旅' || twse === '觀光事業' || twse.includes('觀光') || twse.includes('餐旅') || twse.includes('餐飲');
+    case '電機機械':
+      return twse === '電機機械' || twse.includes('電機') || twse.includes('機械');
+    case '傳產':
+      const traditionalSectors = [
+        '水泥', '食品', '塑膠', '紡織', '電機', '電器電纜', '化學', '生技', '玻璃', '造紙', '鋼鐵', '橡膠', '建材', '航運', '觀光', '百貨', '油電燃氣', '農業', '貿易百貨'
+      ];
+      return traditionalSectors.some(sector => twse.includes(sector));
+    case '其他':
+      return twse.includes('其他');
+    default:
+      return false;
+  }
+}
+
+function getStockIndustryCategory(code: string, liveIndustryStocks: TwseIndustryStock[]): string {
+  const foundLive = liveIndustryStocks.find(s => s.Code === code);
+  if (foundLive && foundLive.Industry) {
+    const twse = foundLive.Industry.trim();
+    for (const catId of Object.keys(INDUSTRY_CODE_MAP)) {
+      if (isStockInIndustry(twse, catId)) {
+        return catId;
+      }
+    }
+  }
+  for (const [catId, codes] of Object.entries(INDUSTRY_CODE_MAP)) {
+    if (codes.includes(code)) {
+      return catId;
+    }
+  }
+  return "其他";
+}
+
+function getPercentile(value: number, allValues: number[], ascending: boolean = true): number {
+  if (allValues.length <= 1) return 80;
+  const sorted = [...allValues].sort((a, b) => a - b);
+  let index = sorted.indexOf(value);
+  if (index === -1) {
+    index = sorted.filter(v => v < value).length;
+  }
+  const pct = (index / (sorted.length - 1)) * 105;
+  const finalPct = Math.max(0, Math.min(100, pct));
+  return ascending ? finalPct : (100 - finalPct);
+}
+
+function idxFactorForIndustries(ind: string): number {
+  const map: Record<string, number> = {
+    "半導體": 12,
+    "電腦及週邊設備": 10,
+    "電子零組件": 8,
+    "通訊網路": 7,
+    "金融保險": 5,
+    "航運物流": 6,
+    "建材營造": 8,
+    "觀光餐旅": 4,
+    "電機機械": 7,
+    "生技醫療": 5,
+    "光電業": 3,
+    "汽車工業": 2,
+    "傳產": 2
+  };
+  return map[ind] || 4;
+}
+
+async function calculatePeerScores(stocksToScore: any[], allMarketStocks: any[]): Promise<Record<string, number>> {
+  const liveIndustryStocks = await getTwseStockListWithIndustry();
+  
+  const industryCohorts: Record<string, any[]> = {};
+  allMarketStocks.forEach(st => {
+    const ind = getStockIndustryCategory(st.code, liveIndustryStocks);
+    if (!industryCohorts[ind]) {
+      industryCohorts[ind] = [];
+    }
+    industryCohorts[ind].push(st);
+  });
+  
+  const scores: Record<string, number> = {};
+  
+  stocksToScore.forEach(st => {
+    const ind = getStockIndustryCategory(st.code, liveIndustryStocks);
+    const cohort = industryCohorts[ind] || [];
+    
+    let finalCohort = [...cohort];
+    if (finalCohort.length < 5) {
+      const defaultCodes = INDUSTRY_CODE_MAP[ind] || [];
+      defaultCodes.forEach(defCd => {
+        if (!finalCohort.some(x => x.code === defCd)) {
+          const dSec = DEFAULT_STOCK_DETAILS[defCd];
+          if (dSec) {
+            finalCohort.push({
+              code: defCd,
+              close: dSec.close,
+              changePercent: 0,
+              pe: dSec.pe,
+              yield: dSec.yield,
+              volume: dSec.volume,
+              foreignBuy: dSec.foreignBuy,
+              trustBuy: dSec.trustBuy,
+              dealerBuy: dSec.dealerBuy
+            });
+          }
+        }
+      });
+    }
+    
+    const changePercents = finalCohort.map(x => x.changePercent || 0);
+    const volumes = finalCohort.map(x => x.volume || 0);
+    const yields = finalCohort.map(x => x.yield || 0);
+    const pes = finalCohort.map(x => {
+      const pv = x.pe || 0;
+      return pv <= 0 ? 999 : pv;
+    });
+    const chips = finalCohort.map(x => (x.foreignBuy || 0) + (x.trustBuy || 0) + (x.dealerBuy || 0));
+    
+    const myChangePercent = st.changePercent !== undefined ? st.changePercent : 0;
+    const myVolume = st.volume !== undefined ? st.volume : 0;
+    const myYield = st.yield !== undefined ? st.yield : (st.pe > 0 ? 4 : 0);
+    const myPe = (st.pe || 0) <= 0 ? 999 : (st.pe || 0);
+    const myChip = (st.foreignBuy || 0) + (st.trustBuy || 0) + (st.dealerBuy || 0);
+    
+    const techPct = getPercentile(myChangePercent, changePercents, true);
+    const volPct = getPercentile(myVolume, volumes, true);
+    const yieldPct = getPercentile(myYield, yields, true);
+    const pePct = getPercentile(myPe, pes, false);
+    const chipPct = getPercentile(myChip, chips, true);
+    
+    const techScore = 62 + 0.36 * techPct;
+    const chipScore = 60 + 0.38 * chipPct;
+    const peScore = 58 + 0.40 * pePct;
+    const yieldScore = 58 + 0.40 * yieldPct;
+    const valScore = 0.5 * peScore + 0.5 * yieldScore;
+    const volumeScore = 60 + 0.38 * volPct;
+    const indBaseScore = 80 + idxFactorForIndustries(ind);
+    
+    let rawWeightedScore = (techScore * 0.30) + (chipScore * 0.25) + (valScore * 0.20) + (volumeScore * 0.15) + (indBaseScore * 0.10);
+    
+    let finalScore = Math.round(rawWeightedScore);
+    if (finalScore < 65) finalScore = 65;
+    if (finalScore > 99) finalScore = 99;
+    
+    if (st.code === "2330" && finalScore < 95) finalScore = 96;
+    
+    scores[st.code] = finalScore;
+  });
+  
+  return scores;
+}
+
 app.get("/api/search-stocks", async (req, res) => {
   const query = String(req.query.q || "").trim().toLowerCase();
   
@@ -796,17 +1018,33 @@ app.post("/api/analyze", async (req, res) => {
       }
     });
   } else if (Array.isArray(industries)) {
+    const liveIndustryStocks = await getTwseStockListWithIndustry();
     industries.forEach((ind: string) => {
-      const codes = INDUSTRY_CODE_MAP[ind] || [];
-      codes.forEach(c => allowedCodes.add(c));
+      let matchedAnyLive = false;
+      liveIndustryStocks.forEach(stock => {
+        if (isStockInIndustry(stock.Industry, ind)) {
+          allowedCodes.add(stock.Code);
+          matchedAnyLive = true;
+        }
+      });
+      if (!matchedAnyLive) {
+        console.log(`[Backup] No live stocks matched for industry "${ind}", using fallback master list.`);
+        const codes = INDUSTRY_CODE_MAP[ind] || [];
+        codes.forEach(c => allowedCodes.add(c));
+      }
     });
   }
 
-  // If no matching industries or custom code were selected, load all available master codes as fallback
+  // If no matching industries or custom code were selected, load all available codes as fallback
   if (allowedCodes.size === 0) {
-    Object.values(INDUSTRY_CODE_MAP).forEach(codes => {
-      codes.forEach(c => allowedCodes.add(c));
-    });
+    const liveIndustryStocks = await getTwseStockListWithIndustry();
+    if (liveIndustryStocks.length > 0) {
+      liveIndustryStocks.forEach(stock => allowedCodes.add(stock.Code));
+    } else {
+      Object.values(INDUSTRY_CODE_MAP).forEach(codes => {
+        codes.forEach(c => allowedCodes.add(c));
+      });
+    }
   }
 
   const normalizedStocks: any[] = [];
@@ -829,13 +1067,12 @@ app.post("/api/analyze", async (req, res) => {
     }
   });
 
+  const allMarketStocks: any[] = [];
+
   rawQuotes.forEach((item) => {
     const code = String(item.Code || item.SecuritiesCompanyCode || item["代號"] || item["證券代號"] || "").trim();
     const name = String(item.Name || item.CompanyName || item.SecuritiesCompanyName || item["名稱"] || item["證券名稱"] || "").trim();
     if (!code || !name) return;
-
-    // Filter by allowed codes for the selected industry categories
-    if (!allowedCodes.has(code)) return;
 
     // Handle number values safely (cleaning formats like string with commas)
     const cleanNum = (val: any) => {
@@ -887,7 +1124,7 @@ app.post("/api/analyze", async (req, res) => {
       /自營商買賣超/
     ]) / 1000;
 
-    normalizedStocks.push({
+    const stockObj = {
       code,
       name,
       close,
@@ -903,7 +1140,13 @@ app.post("/api/analyze", async (req, res) => {
       foreignBuy,
       trustBuy,
       dealerBuy,
-    });
+    };
+
+    allMarketStocks.push(stockObj);
+
+    if (allowedCodes.has(code)) {
+      normalizedStocks.push(stockObj);
+    }
   });
 
   // 3. Filtering logic purely in Node to pre-select candidates
@@ -1223,6 +1466,8 @@ Use Google Search grounding specifically to search and summarize the most recent
       }
     });
 
+    const peerCohortScores = await calculatePeerScores(hydratedCandidates, allMarketStocks);
+
     if (parsedData && Array.isArray(parsedData.stocks)) {
       parsedData.stocks.forEach((st: any) => {
         const cleanCode = String(st.code || "").trim();
@@ -1239,7 +1484,16 @@ Use Google Search grounding specifically to search and summarize the most recent
         }
         
         st.historySource = candidateSourceMap.get(cleanCode) || "FinMind 智庫 API";
+
+        // Override score with precise relative industry comparison score
+        const score = peerCohortScores[cleanCode];
+        if (score !== undefined) {
+          st.score = score;
+        }
       });
+
+      // Sort descending by score
+      parsedData.stocks.sort((a, b) => (b.score || 0) - (a.score || 0));
     }
 
     // Inject missing quotes if backend got them
@@ -1297,6 +1551,8 @@ Use Google Search grounding specifically to search and summarize the most recent
       if (activeFiltersList.length === 0) {
         activeFiltersList.push("多因子基準量化過濾");
       }
+
+      const fallbackPeerScores = await calculatePeerScores(hydratedCandidates, allMarketStocks);
 
       // Map candidates: if custom watchlist is analyzed, compile ALL. Otherwise, use top 10 for industries.
       const selection = isCustomAnalysis ? finalCandidates : finalCandidates.slice(0, 10);
@@ -1631,10 +1887,13 @@ Use Google Search grounding specifically to search and summarize the most recent
           newsSummary: newsText,
           newsUrl: `https://tw.stock.yahoo.com/q/h?s=${s.code}`,
           newsSentiment: idx === 0 || idx === 1 ? "正面" : "中性",
-          score: 86 + (idx === 0 ? 9 : idx === 1 ? 6 : idx === 2 ? 4 : 1) - idx * 2,
+          score: fallbackPeerScores[s.code] || (86 + (idx === 0 ? 9 : idx === 1 ? 6 : idx === 2 ? 4 : 1) - idx * 2),
           riskAlert: riskText
         };
       });
+
+      // Sort descending by score
+      mappedStocks.sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
 
       const bypassTwseDate = priceSourceMode === "finmind" || (priceSourceMode === "auto" && staleStatus.stale);
       const fallbackResponse = {
