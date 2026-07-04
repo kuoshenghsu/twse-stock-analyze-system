@@ -41,21 +41,38 @@ import { motion, AnimatePresence } from 'motion/react';
 import { IndustryType, FilterCondition, AnalysisResponse, AnalysisStockResult } from './types';
 
 const INDUSTRIES: { id: IndustryType; label: string; icon: string }[] = [
-  { id: '半導體', label: '半導體', icon: '💻' },
-  { id: '電子零組件', label: '電子零組件', icon: '🔌' },
-  { id: '電腦及週邊設備', label: '電腦及週邊設備 (AI伺服器/散熱/組裝)', icon: '🖥️' },
-  { id: '光電業', label: '光電業 (精密光學/面板/鏡頭)', icon: '👓' },
-  { id: '汽車工業', label: '汽車工業 (新能源車/車電零組件)', icon: '🚗' },
-  { id: '通訊網路', label: '通訊網路', icon: '📡' },
-  { id: '生技醫療', label: '生技醫療', icon: '🧬' },
-  { id: '金融保險', label: '金融保險', icon: '🏦' },
-  { id: '航運物流', label: '航運物流', icon: '🚢' },
-  { id: '綠能環保', label: '綠能環保', icon: '🌱' },
-  { id: '建材營造', label: '建材營造 (營建建商/都更/重劃區開發)', icon: '🏢' },
-  { id: '觀光餐旅', label: '觀光餐旅 (飯店/餐飲集團/旅行社)', icon: '🏨' },
-  { id: '電機機械', label: '電機機械 (重電/工具機/自動化)', icon: '⚙️' },
-  { id: '傳產', label: '傳產 (化學/鋼鐵/紡織)', icon: '🏗️' },
-  { id: '其他', label: '其他 (TWSE 上市分類)', icon: '📦' }
+  { id: '半導體業', label: '半導體業 (台積電/聯發科/IC設計/封測)', icon: '💻' },
+  { id: '電腦及週邊設備業', label: '電腦及週邊設備業 (AI伺服器/散熱/筆電組裝)', icon: '🖥️' },
+  { id: '電子零組件業', label: '電子零組件業 (被動元件/PCB/連接器/散熱器)', icon: '🔌' },
+  { id: '光電業', label: '光電業 (面板/精密光學/鏡頭/LED)', icon: '👓' },
+  { id: '通訊網路業', label: '通訊網路業 (網通設備/5G網通/電信龍頭)', icon: '📡' },
+  { id: '電子通路業', label: '電子通路業 (電子零件代理商/文曄/大聯大)', icon: '🏪' },
+  { id: '資訊服務業', label: '資訊服務業 (雲端資安/軟體開發/系統整合)', icon: '💾' },
+  { id: '其他電子業', label: '其他電子業 (鴻海/電子代工/工業電腦/設備商)', icon: '⚙️' },
+  { id: '生技醫療業', label: '生技醫療業 (新藥研發/醫療器材/製藥/醫美)', icon: '🧬' },
+  { id: '金融保險業', label: '金融保險業 (金控/銀行/保險/證券)', icon: '🏦' },
+  { id: '建材營造', label: '建材營造 (營建開發/都更/住宅與商辦營建)', icon: '🏢' },
+  { id: '航運業', label: '航運業 (貨櫃航運/航空雙雄/陸運物流)', icon: '🚢' },
+  { id: '觀光餐旅', label: '觀光餐旅 (星級飯店/餐飲集團/旅行社)', icon: '🏨' },
+  { id: '綠能環保', label: '綠能環保 (風電/太陽能/資源回收/儲能)', icon: '🌱' },
+  { id: '電機機械', label: '電機機械 (重電五雄/工具機/工業自動化)', icon: '🔩' },
+  { id: '化學工業', label: '化學工業 (精細化學/肥料/特用化學)', icon: '⚗️' },
+  { id: '鋼鐵工業', label: '鋼鐵工業 (中鋼/鋼管/不鏽鋼/鋼板)', icon: '🏗️' },
+  { id: '水泥工業', label: '水泥工業 (台泥/亞泥/預拌混凝土)', icon: '🧱' },
+  { id: '食品工業', label: '食品工業 (統一/肉品加工/食用油/包裝飲料)', icon: '🥫' },
+  { id: '塑膠工業', label: '塑膠工業 (台塑三寶/塑膠原料/射出成型)', icon: '🧪' },
+  { id: '紡織纖維', label: '紡織纖維 (聚酯加工絲/成衣代工/儒鴻/聚陽)', icon: '👕' },
+  { id: '橡膠工業', label: '橡膠工業 (輪胎製造/橡膠製品/台橡)', icon: '🛞' },
+  { id: '汽車工業', label: '汽車工業 (成車製造/車用電子/汽車零件)', icon: '🚗' },
+  { id: '電器電纜', label: '電器電纜 (華新麗華/電線電纜/重電基礎)', icon: '⚡' },
+  { id: '玻璃陶瓷', label: '玻璃陶瓷 (台玻/建築玻璃/陶瓷衛浴)', icon: '🏺' },
+  { id: '造紙工業', label: '造紙工業 (工業用紙/包裝紙箱/正隆/永豐餘)', icon: '📄' },
+  { id: '貿易百貨', label: '貿易百貨 (統一超/量販百貨/富邦媒/電商)', icon: '🛍️' },
+  { id: '油電燃氣業', label: '油電燃氣業 (台塑化/天然氣供應)', icon: '🔥' },
+  { id: '數位雲端', label: '數位雲端 (數位平台/線上社群/網路平台)', icon: '☁️' },
+  { id: '運動休閒', label: '運動休閒 (巨大美利達/健身器材/製鞋廠)', icon: '👟' },
+  { id: '居家生活', label: '居家生活 (統一實/五金/廚具/居家紡織)', icon: '🏠' },
+  { id: '其他', label: '其他 (不屬於上述分類之TWSE上市個股)', icon: '📦' }
 ];
 
 const AUTOCOMPLETE_STOCKS: { code: string; name: string; english?: string }[] = [
@@ -1175,7 +1192,7 @@ const generateAllHtmlReport = (stocks: AnalysisStockResult[], report: AnalysisRe
 };
 
 export default function App() {
-  const [selectedIndustries, setSelectedIndustries] = useState<IndustryType[]>(['半導體']);
+  const [selectedIndustries, setSelectedIndustries] = useState<IndustryType[]>(['半導體業']);
   const [filters, setFilters] = useState<FilterCondition>(INITIAL_FILTERS);
   const [analysisPeriod, setAnalysisPeriod] = useState<string>('1m');
   const [priceSourceMode, setPriceSourceMode] = useState<string>('auto');
@@ -2434,7 +2451,7 @@ export default function App() {
                     </div>
                     <div className="text-right text-xs font-sans">
                       <span className="font-semibold block text-slate-300">
-                        分析對象: <span className="text-blue-400 font-bold">{isCustomWatchlist ? '自選追蹤清單' : report.scope.industries.join(', ')}</span>
+                        分析對象: <span className="text-blue-400 font-bold">{isCustomWatchlist ? '自選追蹤清單' : (report.scope?.industries || []).join(', ')}</span>
                       </span>
                     </div>
                   </div>
@@ -2469,7 +2486,7 @@ export default function App() {
                     <div>
                       <span className="text-blue-400 block mb-1 font-semibold">【套用的主要過濾條件】</span>
                       <div className="flex flex-wrap gap-1">
-                        {report.scope.filters.map((f, i) => (
+                        {(report.scope?.filters || []).map((f, i) => (
                           <span key={i} className="bg-white/5 text-slate-300 border border-white/15 font-mono text-[10px] px-1.5 py-0.5 rounded leading-tight">
                             {f}
                           </span>
@@ -2501,7 +2518,7 @@ export default function App() {
                           const url = URL.createObjectURL(blob);
                           const link = document.createElement('a');
                           link.href = url;
-                          const industryStr = report.scope && report.scope.industries && report.scope.industries.length > 0 ? report.scope.industries.join('_') : '自選追蹤';
+                          const industryStr = report?.scope?.industries && report.scope.industries.length > 0 ? report.scope.industries.join('_') : '自選追蹤';
                           link.setAttribute('download', isCustomWatchlist ? `自選追蹤個股深度分析報告_${report.stocks.length}檔.html` : `量化研究報告_${industryStr}_前十名合併報告.html`);
                           document.body.appendChild(link);
                           link.click();
