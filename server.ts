@@ -483,7 +483,9 @@ const generateRealisticHistory = (close: number, change: number, points: number)
 async function fetchFinmindHistory(code: string, startDate: string, endDate?: string): Promise<any[]> {
   try {
     const endQuery = endDate ? `&end_date=${endDate}` : "";
-    const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startDate}${endQuery}`);
+    const token = process.env.FINMIND_TOKEN || "";
+    const tokenQuery = token ? `&token=${token}` : "";
+    const res = await fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${code}&start_date=${startDate}${endQuery}${tokenQuery}`);
     if (res.ok) {
       const json = await res.json();
       if (json && json.status === 200 && Array.isArray(json.data)) {
@@ -1437,13 +1439,20 @@ app.post("/api/analyze", async (req, res) => {
 核心分析原則：分析時你必須【依照前一日的收盤價 (previousPrice)】作為主要的技術分析評估、均線交叉、多空勢動能與評分原點。而【當日最新收盤價 (currentPrice)】僅用來作為擬定操作價位區帶（operatingRange）。
 請勿提供絕對買賣建議，不做精準價格預測。`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [{
-            text: `請分析以下候選股票 listings：
+    let response: any = null;
+    let lastError: any = null;
+    const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-3.1-pro-preview"];
+    
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`[Gemini] Attempting analysis using model: ${modelName}`);
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              role: "user",
+              parts: [{
+                text: `請分析以下候選股票 listings：
 \${JSON.stringify(hydratedCandidates, null, 2)}
 
 篩選參數：
@@ -1453,64 +1462,77 @@ app.post("/api/analyze", async (req, res) => {
 -- 總經與政策：\${JSON.stringify(filters?.macro)}
 -- 產業面與新聞：\${JSON.stringify(filters?.industryCondition)}
 -- 資金與ETF：\${JSON.stringify(filters?.capitalFlow)}`
-          }]
-        }
-      ],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          required: ["stocks", "conclusion"],
-          properties: {
-            stocks: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                required: [
-                  "name", "code", "currentPrice", "previousPrice", "targetPrice",
-                  "operatingRange", "technicalSummary", "chipSummary", "companyIntro",
-                  "mainBusiness", "newsSummary", "newsUrl", "newsSentiment", "score", "riskAlert"
-                ],
-                properties: {
-                  name: { type: Type.STRING },
-                  code: { type: Type.STRING },
-                  currentPrice: { type: Type.NUMBER },
-                  previousPrice: { type: Type.NUMBER },
-                  targetPrice: { type: Type.STRING },
-                  operatingRange: { type: Type.STRING },
-                  technicalSummary: { type: Type.STRING },
-                  chipSummary: { type: Type.STRING },
-                  companyIntro: { type: Type.STRING },
-                  mainBusiness: { type: Type.STRING },
-                  newsSummary: { type: Type.STRING },
-                  newsUrl: { type: Type.STRING },
-                  newsSentiment: { type: Type.STRING },
-                  score: { type: Type.NUMBER },
-                  riskAlert: { type: Type.STRING }
-                }
-              }
-            },
-            conclusion: {
+              }]
+            }
+          ],
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: {
               type: Type.OBJECT,
-              required: ["strength", "flow", "pros", "cons"],
+              required: ["stocks", "conclusion"],
               properties: {
-                strength: { type: Type.STRING },
-                flow: { type: Type.STRING },
-                pros: {
+                stocks: {
                   type: Type.ARRAY,
-                  items: { type: Type.STRING }
+                  items: {
+                    type: Type.OBJECT,
+                    required: [
+                      "name", "code", "currentPrice", "previousPrice", "targetPrice",
+                      "operatingRange", "technicalSummary", "chipSummary", "companyIntro",
+                      "mainBusiness", "newsSummary", "newsUrl", "newsSentiment", "score", "riskAlert"
+                    ],
+                    properties: {
+                      name: { type: Type.STRING },
+                      code: { type: Type.STRING },
+                      currentPrice: { type: Type.NUMBER },
+                      previousPrice: { type: Type.NUMBER },
+                      targetPrice: { type: Type.STRING },
+                      operatingRange: { type: Type.STRING },
+                      technicalSummary: { type: Type.STRING },
+                      chipSummary: { type: Type.STRING },
+                      companyIntro: { type: Type.STRING },
+                      mainBusiness: { type: Type.STRING },
+                      newsSummary: { type: Type.STRING },
+                      newsUrl: { type: Type.STRING },
+                      newsSentiment: { type: Type.STRING },
+                      score: { type: Type.NUMBER },
+                      riskAlert: { type: Type.STRING }
+                    }
+                  }
                 },
-                cons: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
+                conclusion: {
+                  type: Type.OBJECT,
+                  required: ["strength", "flow", "pros", "cons"],
+                  properties: {
+                    strength: { type: Type.STRING },
+                    flow: { type: Type.STRING },
+                    pros: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    },
+                    cons: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    }
+                  }
                 }
               }
             }
           }
+        });
+        if (response && response.text) {
+          console.log(`[Gemini] Successfully analyzed using model: ${modelName}`);
+          break;
         }
+      } catch (err: any) {
+        console.warn(`[Gemini] Model ${modelName} failed or threw error:`, err.message || err);
+        lastError = err;
       }
-    });
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error("All Gemini models failed to generate content.");
+    }
 
     const textResult = response.text || "";
     if (!textResult) {
@@ -1899,7 +1921,7 @@ app.post("/api/analyze", async (req, res) => {
         },
         stocks: mappedStocks,
         conclusion: {
-          strength: `目前所選產業板塊（如 ${industries.join("、")} 等）多數處於產業復甦與轉型的關鍵擴張期。在多因子量化指標過濾下，主力板塊均有資金顯著回流跡象，整體產業表現抗跌。`,
+          strength: `目前所選產業板塊（如 ${(Array.isArray(industries) ? industries : []).join("、") || "半導體業、電子零組件業"} 等）多數處於產業復甦與轉型的關鍵擴張期。在多因子量化指標過濾下，主力板塊均有資金顯著回流跡象，整體產業表現抗跌。`,
           flow: "外資與投信等法人機構在過去數個交易日中對上市主板相關標的進行了防守性增持，短線資金偏好顯著向具備高毛利新產品、製程領先的個股靠攏。",
           pros: [
             "所選上市標的之MACD金叉或極短期均線支撐完備，具備技術面轉強動能。",
