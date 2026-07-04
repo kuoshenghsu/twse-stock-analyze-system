@@ -530,7 +530,12 @@ async function determineRealTwseDate(rawQuotes: any[], lastModifiedHeader?: stri
         return code === "2330";
       });
       if (tsmcItem) {
-        const cleanNum = (val: any) => parseFloat(String(val).replace(/,/g, "")) || 0;
+        const cleanNum = (val: any) => {
+          if (val === undefined || val === null) return 0;
+          let s = String(val).replace(/,/g, "").trim();
+          s = s.replace(/＋/g, "+").replace(/－/g, "-");
+          return parseFloat(s) || 0;
+        };
         const twseClose = cleanNum(tsmcItem.ClosingPrice || tsmcItem.ClosePrice || tsmcItem.Close || tsmcItem["收盤價"]);
         if (twseClose > 0) {
           // Find matching close in FinMind history (from newest to oldest)
@@ -880,18 +885,20 @@ app.post("/api/watchlist-quotes", async (req, res) => {
     if (found) {
       const cleanNum = (val: any) => {
         if (val === undefined || val === null) return 0;
-        return parseFloat(String(val).replace(/,/g, "")) || 0;
+        let s = String(val).replace(/,/g, "").trim();
+        s = s.replace(/＋/g, "+").replace(/－/g, "-");
+        return parseFloat(s) || 0;
       };
       const name = String(found.Name || found.CompanyName || found.SecuritiesCompanyName || found["名稱"] || found["證券名稱"] || "").trim();
       const close = cleanNum(found.ClosingPrice || found.ClosePrice || found.Close || found["收盤價"]);
-      const change = cleanNum(found.PriceChange || found.Change || found["漲跌"]);
+      const changeVal = cleanNum(found.PriceChange || found.Change || found["漲跌"]);
       // Some TWSE price change fields carry descriptive +/- symbols or values
       const signCode = String(found["漲跌(＋－)"] || found.PriceChangeSign || "");
-      let finalChange = change;
+      let finalChange = changeVal;
       if (signCode.includes("-") || signCode.includes("－")) {
-        finalChange = -Math.abs(change);
+        finalChange = -Math.abs(changeVal);
       } else if (signCode.includes("+") || signCode.includes("＋")) {
-        finalChange = Math.abs(change);
+        finalChange = Math.abs(changeVal);
       }
       
       const changePercent = close > 0 
@@ -1147,7 +1154,9 @@ app.post("/api/analyze", async (req, res) => {
     // Handle number values safely (cleaning formats like string with commas)
     const cleanNum = (val: any) => {
       if (val === undefined || val === null) return 0;
-      return parseFloat(String(val).replace(/,/g, "")) || 0;
+      let s = String(val).replace(/,/g, "").trim();
+      s = s.replace(/＋/g, "+").replace(/－/g, "-");
+      return parseFloat(s) || 0;
     };
 
     const close = cleanNum(item.ClosingPrice || item.ClosePrice || item.Close || item["收盤價"]);
@@ -1157,7 +1166,14 @@ app.post("/api/analyze", async (req, res) => {
     const high = cleanNum(item.HighestPrice || item.HighPrice || item.High || item["最高價"]);
     const low = cleanNum(item.LowestPrice || item.LowPrice || item.Low || item["最低價"]);
     const volume = cleanNum(item.TradeVolume || item.Volume || item.TradingVolume || item["成交股數"] || item["成交張數"]);
-    const change = cleanNum(item.PriceChange || item.Change || item["漲跌"]);
+    const changeVal = cleanNum(item.PriceChange || item.Change || item["漲跌"]);
+    const signCode = String(item["漲跌(＋－)"] || item.PriceChangeSign || "");
+    let change = changeVal;
+    if (signCode.includes("-") || signCode.includes("－")) {
+      change = -Math.abs(changeVal);
+    } else if (signCode.includes("+") || signCode.includes("＋")) {
+      change = Math.abs(changeVal);
+    }
     
     const changePercent = close > 0 && Math.abs(change) > 0 
       ? (change / (close - change)) * 100 
@@ -1325,8 +1341,7 @@ app.post("/api/analyze", async (req, res) => {
           const fmDate = String(latestFmItem.date || "");
           const isFmNewerThanTwse = twseDataDate ? (fmDate > twseDataDate) : true;
           
-          const shouldOverwrite = priceSourceMode === "finmind" || 
-            (priceSourceMode !== "twse" && (staleStatus.stale || isFmNewerThanTwse));
+          const shouldOverwrite = priceSourceMode === "finmind";
           
           if (shouldOverwrite) {
             const fmClose = parseFloat(String(latestFmItem.close || 0));
@@ -1505,7 +1520,7 @@ app.post("/api/analyze", async (req, res) => {
     if (resultJson && resultJson.stocks && Array.isArray(resultJson.stocks)) {
       resultJson.stocks.sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
     }
-    const bypassTwseDate = priceSourceMode === "finmind" || (priceSourceMode === "auto" && staleStatus.stale);
+    const bypassTwseDate = priceSourceMode === "finmind";
     resultJson.twseDataDate = getTwseDataDate(bypassTwseDate ? undefined : rawQuotes, hydratedCandidates);
     
     // Inject missing properties expected by frontend App.tsx

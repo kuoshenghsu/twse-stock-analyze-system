@@ -1733,9 +1733,9 @@ export default function App() {
           <div className="flex items-center gap-3 self-start md:self-auto text-xs">
             <span className="flex items-center gap-1 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded text-slate-300 font-mono font-medium">
               <Database className="w-3.5 h-3.5 text-slate-400" />
-              {priceSourceMode === 'auto' && '價格智選核心 (自動雙鏈路)'}
-              {priceSourceMode === 'twse' && '價格智選核心 (TWSE API)'}
-              {priceSourceMode === 'finmind' && '價格智選核心 (FinMind API)'}
+              {priceSourceMode === 'auto' && '自動偵測 (優選 TWSE API)'}
+              {priceSourceMode === 'twse' && '手動指定 (TWSE API)'}
+              {priceSourceMode === 'finmind' && '手動指定 (FinMind API)'}
               :
               {tpexStatus ? (
                 tpexStatus.tpexConnection === 'SUCCESS' ? (
@@ -1950,25 +1950,27 @@ export default function App() {
               <span className="text-xs text-slate-400">複選可 / 需至少選 1 項</span>
             </div>
             
-            <div className="grid grid-cols-3 gap-2">
-              {INDUSTRIES.map((industry) => {
-                const isSelected = selectedIndustries.includes(industry.id);
-                return (
-                  <button
-                    key={industry.id}
-                    id={`industry-btn-${industry.id}`}
-                    onClick={() => handleToggleIndustry(industry.id)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'bg-blue-600 border-blue-600/50 text-white shadow-lg shadow-blue-900/20 transform scale-[1.02]' 
-                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-lg mb-1">{industry.icon}</span>
-                    <span className="text-xs font-semibold leading-tight">{industry.id}</span>
-                  </button>
-                );
-              })}
+            <div className="max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="grid grid-cols-3 gap-2">
+                {INDUSTRIES.map((industry) => {
+                  const isSelected = selectedIndustries.includes(industry.id);
+                  return (
+                    <button
+                      key={industry.id}
+                      id={`industry-btn-${industry.id}`}
+                      onClick={() => handleToggleIndustry(industry.id)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-all cursor-pointer ${
+                        isSelected 
+                          ? 'bg-blue-600 border-blue-600/50 text-white shadow-lg shadow-blue-900/20 transform scale-[1.02]' 
+                          : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="text-lg mb-1">{industry.icon}</span>
+                      <span className="text-xs font-semibold leading-tight">{industry.id}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -2299,20 +2301,20 @@ export default function App() {
 
               <div className="bg-slate-950/40 border border-white/5 p-3.5 rounded-lg space-y-2 text-[11px] text-slate-400 font-sans leading-relaxed">
                 <div className="flex items-start gap-1.5">
-                  <span className="text-blue-400 font-bold shrink-0">● 最新一日：</span>
-                  <span>對接 <strong>TWSE OpenAPI</strong> 自動提取最新收盤行情及三大法人買賣。</span>
+                  <span className="text-blue-400 font-bold shrink-0">● 自動偵測：</span>
+                  <span>優先對接 <strong>TWSE OpenAPI</strong> 讀取前一營業日的資料（或當日盤後已更新之最新盤後盤即時資訊）。</span>
                 </div>
                 <div className="flex items-start gap-1.5">
-                  <span className="text-blue-400 font-bold shrink-0">● 歷史統計：</span>
-                  <span>串接 <strong>FinMind 財金資料庫</strong> 下載歷史日K行情，進行週/月生命線走勢關聯。</span>
+                  <span className="text-blue-400 font-bold shrink-0">● 歷史區間：</span>
+                  <span>串接 <strong>FinMind 財金資料庫</strong> 下載歷史日 K 線行情，用於進行週、月等中長線技術指標分析。</span>
                 </div>
                 <div className={`flex items-start gap-1.5 font-medium transition-all duration-300 ${priceSourceMode === 'finmind' ? 'text-emerald-400/95 font-bold bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/25 animate-pulse' : 'text-amber-500/90'}`}>
-                  <span className="shrink-0">{priceSourceMode === 'finmind' ? '💡 行情策略：' : '⚠️ 專業算則：'}</span>
+                  <span className="shrink-0">💡 運作機制：</span>
                   <span>
                     {priceSourceMode === 'finmind' ? (
-                      '【FinMind 模式】主要以提取當日最新收盤價進行量化部署；若當日尚未更新（通常於 14:30 之後更新）或無資料，系統將自動、無縫改採前一日最新收盤數據，以確保分析正確完整。'
+                      '【FinMind 模式】手動選取，以歷史智庫做完整盤後行情與大宗資料回溯，當日若未更新則自動採計前一日最新價格。'
                     ) : (
-                      '點選分析將自動以前一日收盤價為量化分析原點，今日即時行情僅作為操作價位帶極值參考。'
+                      '【自動偵測 / TWSE 模式】優先讀取 TWSE API 行情資料，預設使用前一營業日之資料作為分析基準價。'
                     )}
                   </span>
                 </div>
