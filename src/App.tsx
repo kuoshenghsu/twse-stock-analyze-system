@@ -1210,6 +1210,8 @@ export default function App() {
     techTransit: false
   });
 
+  const [activeFilterTab, setActiveFilterTab] = useState<string>('technical');
+
   const [report, setReport] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printingStockCode, setPrintingStockCode] = useState<string | null>(null);
@@ -1974,7 +1976,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 2. Custom Filter Collapsible Checklist */}
+          {/* 2. Custom Filter Tabbed Checklist */}
           <div className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-sm backdrop-blur-md">
             <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2.5">
               <h2 className="font-bold text-slate-100 flex items-center gap-1.5">
@@ -1996,240 +1998,195 @@ export default function App() {
               </button>
             </div>
 
-            {/* Filter accordions */}
-            <div className="space-y-4">
-              
-              {/* Technical indicators accordion */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-technical-toggle"
-                  onClick={() => toggleSection('technical')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    📊 技術指標過濾 ({Object.values(filters.technical).filter(Boolean).length})
-                  </span>
-                  {expandedSections.technical ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.technical && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10 transition-all">
-                    {[
-                      { key: 'macd', label: 'MACD 金叉臨界點 (0 < Diff-MACD < 1.5)' },
-                      { key: 'above10ma', label: '收盤價高於 10MA 短支撐' },
-                      { key: 'above30ma', label: '收盤價高於 30MA 中期生命線' },
-                      { key: 'gain5pct', label: '當日反彈上漲幅 ＞ 5%' },
-                      { key: 'kdGold', label: 'KD指標低檔黃金交叉' },
-                      { key: 'multiLine', label: '月線/季線 多頭排列' }
-                    ].map(f => (
-                      <div 
-                        key={f.key} 
-                        id={`filter-tech-${f.key}`}
-                        onClick={() => handleToggleFilter('technical', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.technical[f.key as keyof typeof filters.technical] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Tab navigation buttons */}
+            <div className="grid grid-cols-3 gap-1.5 mb-4">
+              {[
+                { id: 'technical', label: '技術指標', icon: '📊' },
+                { id: 'chip', label: '籌碼進出', icon: '👥' },
+                { id: 'macro', label: '總體經濟', icon: '🌎' },
+                { id: 'industryCondition', label: '產業景氣', icon: '🏭' },
+                { id: 'capitalFlow', label: '資金流向', icon: '💸' },
+                { id: 'techTransit', label: '技術轉型', icon: '⚡' }
+              ].map((tab) => {
+                const isActive = activeFilterTab === tab.id;
+                const activeCount = Object.values(filters[tab.id as keyof FilterCondition] || {}).filter(Boolean).length;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveFilterTab(tab.id)}
+                    className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg border text-center transition-all cursor-pointer relative ${
+                      isActive
+                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-semibold shadow-inner'
+                        : 'bg-white/5 border-white/15 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="text-sm mb-0.5">{tab.icon}</span>
+                    <span className="text-[10px] truncate max-w-full">{tab.label}</span>
+                    {activeCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white font-mono text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center shadow-lg border border-slate-900 animate-scale-in">
+                        {activeCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-              {/* Chip indicators accordion */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-chip-toggle"
-                  onClick={() => toggleSection('chip')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    👥 籌碼進出指標 ({Object.values(filters.chip).filter(Boolean).length})
-                  </span>
-                  {expandedSections.chip ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.chip && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
-                    {[
-                      { key: 'vol5000', label: '當日成交量 ＞ 5000 張' },
-                      { key: 'vol30maLimit', label: '成交量未失控 (＜30日均量 × 3)' },
-                      { key: 'foreignBuy', label: '三大法人：外資買超' },
-                      { key: 'trustBuy', label: '三大法人：投信買超' },
-                      { key: 'dealerBuy', label: '三大法人：自營商買超' },
-                      { key: 'majorIncrease', label: '集保千張籌碼大戶持股增加' }
-                    ].map(f => (
-                      <div 
-                        key={f.key}
-                        id={`filter-chip-${f.key}`}
-                        onClick={() => handleToggleFilter('chip', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.chip[f.key as keyof typeof filters.chip] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Active tab content */}
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3.5 min-h-[140px] flex flex-col justify-center">
+              {activeFilterTab === 'technical' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'macd', label: 'MACD 金叉臨界點 (0 < Diff-MACD < 1.5)' },
+                    { key: 'above10ma', label: '收盤價高於 10MA 短支撐' },
+                    { key: 'above30ma', label: '收盤價高於 30MA 中期生命線' },
+                    { key: 'gain5pct', label: '當日反彈上漲幅 ＞ 5%' },
+                    { key: 'kdGold', label: 'KD指標低檔黃金交叉' },
+                    { key: 'multiLine', label: '月線/季線 多頭排列' }
+                  ].map(f => (
+                    <div 
+                      key={f.key} 
+                      id={`filter-tech-${f.key}`}
+                      onClick={() => handleToggleFilter('technical', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.technical[f.key as keyof typeof filters.technical] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Macro policy indicators accordion */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-macro-toggle"
-                  onClick={() => toggleSection('macro')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    🌎 總體經濟與政策 ({Object.values(filters.macro).filter(Boolean).length})
-                  </span>
-                  {expandedSections.macro ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.macro && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
-                    {[
-                      { key: 'ratePos', label: '利率政策周期偏多 (降息預期)' },
-                      { key: 'inflationBetter', label: 'CPI通膨數據改善' },
-                      { key: 'fxRise', label: '新台幣兌美元匯率走升' },
-                      { key: 'policy利多', label: '政府公共政策有政策利多' }
-                    ].map(f => (
-                      <div 
-                        key={f.key}
-                        id={`filter-macro-${f.key}`}
-                        onClick={() => handleToggleFilter('macro', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.macro[f.key as keyof typeof filters.macro] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {activeFilterTab === 'chip' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'vol5000', label: '當日成交量 ＞ 5000 張' },
+                    { key: 'vol30maLimit', label: '成交量未失控 (＜30日均量 × 3)' },
+                    { key: 'foreignBuy', label: '三大法人：外資買超' },
+                    { key: 'trustBuy', label: '三大法人：投信買超' },
+                    { key: 'dealerBuy', label: '三大法人：自營商買超' },
+                    { key: 'majorIncrease', label: '集保千張籌碼大戶持股增加' }
+                  ].map(f => (
+                    <div 
+                      key={f.key}
+                      id={`filter-chip-${f.key}`}
+                      onClick={() => handleToggleFilter('chip', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.chip[f.key as keyof typeof filters.chip] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Industry climate and conditions */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-industry-toggle"
-                  onClick={() => toggleSection('industryCondition')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    🏭 產業景氣動態 ({Object.values(filters.industryCondition).filter(Boolean).length})
-                  </span>
-                  {expandedSections.industryCondition ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.industryCondition && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
-                    {[
-                      { key: 'recovery', label: '景氣週期呈現 復甦 / 成長 驅動' },
-                      { key: 'peerStrong', label: '上游、下游同業鏈條呈現強烈漲勢' },
-                      { key: 'supplyTight', label: '庫存調整結束，市場供需偏緊' },
-                      { key: 'news利多', label: '新聞媒體透露近期主流訂單利多' }
-                    ].map(f => (
-                      <div 
-                        key={f.key}
-                        id={`filter-ind-${f.key}`}
-                        onClick={() => handleToggleFilter('industryCondition', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.industryCondition[f.key as keyof typeof filters.industryCondition] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {activeFilterTab === 'macro' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'ratePos', label: '利率政策周期偏多 (降息預期)' },
+                    { key: 'inflationBetter', label: 'CPI通膨數據改善' },
+                    { key: 'fxRise', label: '新台幣兌美元匯率走升' },
+                    { key: 'policy利多', label: '政府公共政策有政策利多' }
+                  ].map(f => (
+                    <div 
+                      key={f.key}
+                      id={`filter-macro-${f.key}`}
+                      onClick={() => handleToggleFilter('macro', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.macro[f.key as keyof typeof filters.macro] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Capital flow indicators */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-flow-toggle"
-                  onClick={() => toggleSection('capitalFlow')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    💸 資金流向與偏好 ({Object.values(filters.capitalFlow).filter(Boolean).length})
-                  </span>
-                  {expandedSections.capitalFlow ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.capitalFlow && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
-                    {[
-                      { key: 'flowIn', label: '同業群板塊資金流入佔比急增' },
-                      { key: 'etfBuy', label: '高股息/中小型主題 ETF 加速增持' },
-                      { key: 'riskOn', label: '外圍資金追價意願與風險偏好提升' }
-                    ].map(f => (
-                      <div 
-                        key={f.key}
-                        id={`filter-flow-${f.key}`}
-                        onClick={() => handleToggleFilter('capitalFlow', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.capitalFlow[f.key as keyof typeof filters.capitalFlow] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {activeFilterTab === 'industryCondition' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'recovery', label: '景氣週期呈現 復甦 / 成長 驅動' },
+                    { key: 'peerStrong', label: '上游、下游同業鏈條呈現強烈漲勢' },
+                    { key: 'supplyTight', label: '庫存調整結束，市場供需偏緊' },
+                    { key: 'news利多', label: '新聞媒體透露近期主流訂單利多' }
+                  ].map(f => (
+                    <div 
+                      key={f.key}
+                      id={`filter-ind-${f.key}`}
+                      onClick={() => handleToggleFilter('industryCondition', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.industryCondition[f.key as keyof typeof filters.industryCondition] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Technical transformation and business innovation */}
-              <div className="border border-white/10 rounded-lg overflow-hidden">
-                <button 
-                  id="accordion-transit-toggle"
-                  onClick={() => toggleSection('techTransit')}
-                  className="w-full flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                    ⚡ 技術轉型與競爭力 ({Object.values(filters.techTransit).filter(Boolean).length})
-                  </span>
-                  {expandedSections.techTransit ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </button>
-                {expandedSections.techTransit && (
-                  <div className="p-3.5 space-y-2.5 bg-slate-950/40 border-t border-white/10">
-                    {[
-                      { key: 'newProduct', label: '高毛利新世代新產品投片投產' },
-                      { key: 'newTech', label: '製程領先或跨入前瞻核心新技術' },
-                      { key: 'newBiz', label: '從單一產品跨足軟體/授權新商業模式' },
-                      { key: 'competitiveness', label: '關鍵核心專利與晶圓全球競爭力提升' }
-                    ].map(f => (
-                      <div 
-                        key={f.key}
-                        id={`filter-trans-${f.key}`}
-                        onClick={() => handleToggleFilter('techTransit', f.key)}
-                        className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
-                      >
-                        {filters.techTransit[f.key as keyof typeof filters.techTransit] ? (
-                          <CheckSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-500/50" />
-                        )}
-                        <span>{f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {activeFilterTab === 'capitalFlow' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'flowIn', label: '同業群板塊資金流入佔比急增' },
+                    { key: 'etfBuy', label: '高股息/中小型主題 ETF 加速增持' },
+                    { key: 'riskOn', label: '外圍資金追價意願與風險偏好提升' }
+                  ].map(f => (
+                    <div 
+                      key={f.key}
+                      id={`filter-flow-${f.key}`}
+                      onClick={() => handleToggleFilter('capitalFlow', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.capitalFlow[f.key as keyof typeof filters.capitalFlow] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
+              {activeFilterTab === 'techTransit' && (
+                <div className="space-y-2.5 animate-fade-in">
+                  {[
+                    { key: 'newProduct', label: '高毛利新世代新產品投片投產' },
+                    { key: 'newTech', label: '製程領先或跨入前瞻核心新技術' },
+                    { key: 'newBiz', label: '從單一產品跨足軟體/授權新商業模式' },
+                    { key: 'competitiveness', label: '關鍵核心專利與晶圓全球競爭力提升' }
+                  ].map(f => (
+                    <div 
+                      key={f.key}
+                      id={`filter-trans-${f.key}`}
+                      onClick={() => handleToggleFilter('techTransit', f.key)}
+                      className="flex items-center gap-2 text-xs font-medium cursor-pointer text-slate-300 hover:text-white"
+                    >
+                      {filters.techTransit[f.key as keyof typeof filters.techTransit] ? (
+                        <CheckSquare className="w-4 h-4 text-blue-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-500/50" />
+                      )}
+                      <span>{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
